@@ -1,0 +1,52 @@
+#!/usr/bin/env batchflow
+<?xml version="1.0"?>
+<Document>
+  <Network type="subnet" name="MAIN">
+    <Node name="node_LOOP0_1" type="LOOP0" x="880" y="180">
+      <Parameter name="LENGTH" type="subnet_param" value="int:ARG1" description="subnet_param"/>
+      <Parameter name="ADVANCE" type="subnet_param" value="int:ARG2" description="subnet_param"/>
+      <Parameter name="WINDOW_LENGTH" type="subnet_param" value="int:ARG3" description="subnet_param"/>
+    </Node>
+    <Node name="node_InputStream_1" type="InputStream" x="410" y="110">
+      <Parameter name="TYPE" type="string" value="" description="Type of stream: stream, fd, or FILE (default stream)"/>
+      <Parameter name="RETRY" type="int" value="" description="If set to N, InputStream will retry N times on open fail"/>
+    </Node>
+    <Node name="node_Constant_1" type="Constant" x="100" y="100">
+      <Parameter name="VALUE" type="subnet_param" value="ARG4" description="The value"/>
+    </Node>
+    <Link from="node_Constant_1" output="VALUE" to="node_InputStream_1" input="INPUT"/>
+    <Link from="node_InputStream_1" output="OUTPUT" to="node_LOOP0_1" input="INPUT"/>
+    <NetOutput name="BEAT_DETECTED" node="node_LOOP0_1" terminal="BEAT_DETECTED" object_type="any" description="Dynamic"/>
+    <NetOutput name="TEMPO" node="node_LOOP0_1" terminal="TEMPO" object_type="any" description="Dynamic"/>
+    <NetOutput name="CONFIDENCE" node="node_LOOP0_1" terminal="CONFIDENCE" object_type="any" description="Dynamic"/>
+  </Network>
+  <Network type="iterator" name="LOOP0">
+    <Node name="node_BeatTracker_1" type="BeatTracker" x="870" y="100">
+      <Parameter name="RELIABILITY-THRESHOLD" type="float" value="0.1" description="The threshold for the beat detection."/>
+      <Parameter name="ADVANCE" type="subnet_param" value="ADVANCE" description="The shift length beween adjacent frames (in samples)[default: 160]."/>
+      <Parameter name="SAMPLING_RATE" type="int" value="16000" description="sampling rate of sound data."/>
+      <Parameter name="MAX_BPM" type="int" value="180" description="Maximum BPM."/>
+      <Parameter name="MIN_BPM" type="int" value="60" description="Minimum BPM."/>
+      <Parameter name="VECTOR_FLAG" type="bool" value="false" description="Output vectors or not."/>
+      <Parameter name="LOG_FLAG" type="bool" value="false" description="Log or not."/>
+    </Node>
+    <Node name="node_AudioStreamFromWave_1" type="AudioStreamFromWave" x="100" y="150">
+      <Parameter name="LENGTH" type="subnet_param" value="LENGTH" description="The frame length of each channel (in samples) [default: 512]."/>
+      <Parameter name="ADVANCE" type="subnet_param" value="ADVANCE" description="The shift length beween adjacent frames (in samples)[default: 160]."/>
+      <Parameter name="USE_WAIT" type="bool" value="false" description="If true, real recording is simulated [default: false]."/>
+    </Node>
+    <Node name="node_MultiFFT_1" type="MultiFFT" x="520" y="300">
+      <Parameter name="LENGTH" type="subnet_param" value="LENGTH" description="FFT length in sample. [default: 512]"/>
+      <Parameter name="WINDOW" type="string" value="HAMMING" description="A window function for FFT. WINDOW should be CONJ, HAMMING, RECTANGLE, or HANNING. [default: CONJ]"/>
+      <Parameter name="WINDOW_LENGTH" type="subnet_param" value="WINDOW_LENGTH" description="Window length of the window function. [default: 512]"/>
+    </Node>
+    <Link from="node_AudioStreamFromWave_1" output="AUDIO" to="node_BeatTracker_1" input="AUDIO"/>
+    <Link from="node_AudioStreamFromWave_1" output="AUDIO" to="node_MultiFFT_1" input="INPUT"/>
+    <Link from="node_MultiFFT_1" output="OUTPUT" to="node_BeatTracker_1" input="FFTAUDIO"/>
+    <NetInput name="INPUT" node="node_AudioStreamFromWave_1" terminal="INPUT" object_type="Stream" description="An audio input stream (IStream)."/>
+    <NetOutput name="BEAT_DETECTED" node="node_BeatTracker_1" terminal="BEAT_DETECTED" object_type="bool" description="Is a beat detected"/>
+    <NetOutput name="TEMPO" node="node_BeatTracker_1" terminal="TEMPO" object_type="float" description="beat tempo"/>
+    <NetOutput name="CONFIDENCE" node="node_BeatTracker_1" terminal="CONFIDENCE" object_type="float" description="The confidence about the output beat."/>
+    <NetCondition name="CONDITION" node="node_AudioStreamFromWave_1" terminal="NOT_EOF"/>
+  </Network>
+</Document>
