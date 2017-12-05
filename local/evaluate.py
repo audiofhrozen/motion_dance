@@ -26,19 +26,22 @@ parser.add_argument('--rot', '-r', type=str, help='Rotation type')
 args = parser.parse_args()
 config = ConfigParser.ConfigParser()
 
-def rad2deg(radians):
-  degrees = (radians * 180.0) /np.pi 
-  return degrees
-
 def render_motion(_motion, _config):
   motion = (_motion - _config.intersec_pos)/_config.slope_pos
-  axis_motion = np.zeros(( len(_PARTS),motion.shape[0],3), dtype=np.float32)
-  for i in range(len(_PARTS)):
-      if i ==0:
-          axis_motion[i,:] = 100*motion[:,0:3] 
-      else:
-          for j in range(motion.shape[0]):
-              axis_motion[i, j,:] = rad2deg(np.asarray([quat2euler(motion[j,i*4-1:i*4+3])])) 
+  axis_motion = np.zeros(( len(_config.parts),motion.shape[0],3), dtype=np.float32)
+  for i in range(len(_config.parts)):
+    if i ==0:
+      axis_motion[i,:] = gnrl_conf.pos_scale*motion[:,0:3] 
+    else:
+      for j in range(motion.shape[0]):
+        if gnrl_conf.rot_type=='euler':
+          axis_motion[i, j,:] = rad2deg(motion[j,i*3:i*3+3]) 
+        elif gnrl_conf.rot_type=='quat':
+          axis_motion[i, j,:] = rad2deg(np.asarray([quat2euler(motion[j,i*4-1:i*4+3])])) 
+        else:
+          print_error('Incorrect type of rotation')
+          raise TypeError()
+  return axis_motion
 
 def eval_next_step(_model, fileslist):
   print_info('Evaluating next step...')
@@ -57,12 +60,15 @@ def eval_next_step(_model, fileslist):
         _output[k] = _model.forward(Variable(xp.asarray(_audio[k:k+1])), 
           Variable(xp.asarray(_current_step))).data.get()
       _time = timeit.default_timer() -_start
+      _motion = render_motion(_motion[1:], gnrl_conf) 
+      _output = render_motion(_output, gnrl_conf)
+
       _out_file = '{}/{}_{}_next_step.h5'.format(gnrl_conf.out_folder,_name,gnrl_conf.snr_lst[i])
-      print(str(_time), ':', mean_squared_error(_motion[1:], _output))
+      print(str(_time), ':', mean_squared_error(_motion, _output))
       if os.path.exists(_out_file):
           os.remove(_out_file)
       with h5py.File(_out_file, 'a') as f:
-          ds = f.create_dataset('true', data=_motion[1:])
+          ds = f.create_dataset('true', data=_motion)
           ds = f.create_dataset('predicted', data=_output)
   return
 
@@ -101,10 +107,6 @@ def main():
   print('### Preparing dataset...')
   min_val = np.ones((pos_max.shape), dtype=np.float32)* gnrl_conf.rng_pos[0]
   max_val = np.ones((pos_max.shape), dtype=np.float32)* gnrl_conf.rng_pos[1]    
-  #for i in range(pos_max.shape[1]):
-  #    if abs(pos_max[0,i]-pos_min[0,i]) < 0.2:
-  #        min_val[0,i] *= 0.05
-  #        max_val[0,i] *= 0.05
   div = (pos_max-pos_min)
   div[div==0] = 1
   gnrl_conf.slope_pos = (max_val-min_val)/ div

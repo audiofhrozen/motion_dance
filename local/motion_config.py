@@ -36,6 +36,7 @@ class Configurations(object):
 		self.slope_pos= None
 		self.intersec_wav= None
 		self.slope_wav= None
+		self.pos_scale = 100.0
 		
 		if self.rot_type=='euler':
 			self.pos_dim= len(self.parts)*3

@@ -5,6 +5,7 @@ from time import sleep
 import numpy as np
 from sys import stdout
 from transforms3d.euler import euler2quat, quat2euler
+from python_utils.maths import deg2rad, rad2deg
  
 parser = argparse.ArgumentParser(description='UE4-Python OSC connection')
 parser.add_argument('--hdf5', '-d', type=str, help='File for motion generation in HDF5 format')
@@ -25,10 +26,6 @@ characters = ['DNN']
 _SERVER_IP = '192.168.170.112'
 _SERVER_PORT = 6060
 _HEIGHT_CH = 100.0
-
-def rad2deg(radians):
-    degrees = (radians * 180.0) /np.pi 
-    return degrees
 
 # TODO: Need to get configuration from files
 
