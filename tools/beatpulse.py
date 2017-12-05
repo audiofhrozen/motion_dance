@@ -22,6 +22,7 @@ class BPMApp(tk.Tk):
 		self.geometry('640x480')
 		self.configure(background='black')
 		self.bpm_count = []
+		self.delay = 0.02 # in seconds
 
 		self.label_init = tk.Label(self, text='Press any key to record the beat...\n ', bg='black', fg='white', 
 			font=('Comic Sans MS', 12))
@@ -44,7 +45,7 @@ class BPMApp(tk.Tk):
 
 	def onKeyPress(self, event):
 		t = time.time()
-		self.bpm_count +=[t-self.start]
+		self.bpm_count +=[t-self.start -self.delay]
 		if len(self.bpm_count)>1:
 			bpm = 60.0/(self.bpm_count[-1]-self.bpm_count[-2])
 			self.v_bpm.set('{:2.0f} bpm'.format(bpm))
@@ -81,14 +82,18 @@ def main():
 	pyglet.app.exit()
 
 	fileout = os.path.basename(args.wav)
-	fileout = fileout.replace('.wav', '')
-	fileout = '{}/{}_{}.h5'.format(args.out,fileout, args.pfx)
+	fileout = os.path.splitext(fileout)[0]
+	fileout = '{}/{}_{}.txt'.format(args.out,fileout, args.pfx)
 
-	if os.path.exists(fileout):
-		os.remove(fileout)
+	beats = [ '{:.09f}'.format(x) for x in root.bpm_count ]
+	beats = '\n'.join(beats)
+	with open(fileout, 'w+') as f:
+		f.write(beats)
+	#if os.path.exists(fileout):
+	#	os.remove(fileout)
 
-	with h5py.File(fileout,'a') as f:
-		dset = f.create_dataset('beats', data= root.bpm_count)
+	#with h5py.File(fileout,'a') as f:
+	#	dset = f.create_dataset('beats', data= root.bpm_count)
 
 	print('Record Finished')
 	return
