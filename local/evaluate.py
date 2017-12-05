@@ -10,6 +10,7 @@ import scipy.io.wavfile as wavfile
 import chainer
 from chainer import cuda, serializers, Variable
 from python_utils.audio import *
+from python_utils.print_utils import print_info
 from data_preproc import format_data
 from motion_config import Configurations 
 from transforms3d.euler import euler2quat, quat2euler
@@ -24,9 +25,6 @@ parser.add_argument('--exp', '-e', type=str, help='Experiment type')
 parser.add_argument('--rot', '-r', type=str, help='Rotation type')
 args = parser.parse_args()
 config = ConfigParser.ConfigParser()
-
-def print_info(message):
-  print(Fore.GREEN + Style.BRIGHT + '[{}] INFO: '.format(strftime("%Y-%m-%d %H:%M:%S", localtime())) + Style.RESET_ALL + message)
 
 def rad2deg(radians):
   degrees = (radians * 180.0) /np.pi 

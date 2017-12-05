@@ -9,18 +9,19 @@ from scipy.io import wavfile
 from python_utils.audio import *
 from motion_config import Configurations
 from transforms3d.euler import euler2quat
+from python_utils.print_utils import print_info, print_warning, print_error
 
 def deg2rad(degrees):
     radians = (degrees * np.pi) /180.0 
     return radians
 
 def calculate_minmax(fileslist):
-    print('### MinMax file not found...')
-    print('### Creating MinMax file...')
+    print_info('### MinMax file not found...')
+    print_info('### Creating MinMax file...')
     if len(fileslist) < 1:
         raise ValueError('No files were found in the folder ...')
     for item in fileslist:
-        print(item)
+        #print(item)
         with open(item, 'rb') as f:
             data_file = f.read().split('\r\n')
         num_frames = int(data_file[5].split(' ')[1])
@@ -49,7 +50,8 @@ def calculate_minmax(fileslist):
                     tmp_minmax[i*4-1:(i+1)*4-1, 0] =  np.amin(new_array, axis = 0) # minimum
                     tmp_minmax[i*4-1:(i+1)*4-1, 1] =  np.amax(new_array, axis = 0) # maximum
                 else:
-                    raise TypeError('Incorrect type of rotation')
+                    print_error('Incorrect type of rotation')
+                    raise TypeError('.')
         if not 'pos_minmax' in locals():
             pos_minmax = np.zeros((gnrl_conf.pos_dim,2), dtype=np.float32)
             pos_minmax[:,0] = tmp_minmax[:,1]

@@ -7,8 +7,8 @@ rot="euler"
 exp="bpm"
 graphs=false
 stage=0
-name="ch300_u1604_c90_cdnn7_nossh" #chainer_cudnn7.5_nossh
-image="chainer/nossh:3.0.0-cuda9.0-cudnn7-16.04"
+name="ch121_u1404_c75_cdnn5_nossh" #"ch300_u1604_c90_cdnn7_nossh" #chainer_cudnn7.5_nossh
+image="chainer/nossh:1.21.0-cuda7.5-cudnn5-14.04" #"chainer/nossh:3.0.0-cuda9.0-cudnn7-16.04"
 
 while test $# -gt 0
 do

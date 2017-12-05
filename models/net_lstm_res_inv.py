@@ -17,22 +17,14 @@ class Network(chainer.Chain):
         dim = InitOpt[1]
         dim2 = InitOpt[2]
         super(Network, self).__init__(
-
-            rescv_10 = L.Convolution2D(1, 32, ksize=(1, 1), nobias=True),
-            resbn_11 = L.BatchNormalization(32),
-            rescv_12 = L.Convolution2D(32, 32, ksize=(33, 3), pad=(11,2), nobias=True),
-            resbn_12 = L.BatchNormalization(32),
-            rescv_12 = L.Convolution2D(32, 32, ksize=(33, 3), pad=(11,2), nobias=True),
-            resbn_12 = L.BatchNormalization(32),
-
-            redcv1 = 
-            redbn =
-
+            conv1 = L.Convolution2D(1, 16, ksize=(33, 2), nobias=True),
+            cvbn1 = L.BatchNormalization(1),
+            conv2 = L.Convolution2D(16, 32, ksize=(33, 2), nobias=True),
+            cvbn2 = L.BatchNormalization(16),
             conv3 = L.Convolution2D(32, 64, ksize=(33, 2), nobias=True),
-            cvbn3 = L.BatchNormalization(64),
+            cvbn3 = L.BatchNormalization(32),
             conv4 = L.Convolution2D(64, dim, ksize=(33, 2), nobias=True),
-            cvbn4  = L.BatchNormalization(dim),
-
+            cvbn4  = L.BatchNormalization(64),
             fc01 = L.Linear(dim, dim), 
             enc_lstm1 = L.LSTM(dim, units),
             enc_lstm2 = L.LSTM(units, units),
@@ -62,13 +54,13 @@ class Network(chainer.Chain):
         act = F.elu
         if printing: print('x', h.data.shape)
         if printing: print('step', h1.data.shape)
-        h = act(self.cvbn1(self.conv1(h), test=not self.train))
+        h = self.conv1(act(self.cvbn1(h, test=not self.train)))
         if printing: print('conv1', h.data.shape)
-        h = act(self.cvbn2(self.conv2(h), test=not self.train))
+        h = self.conv2(act(self.cvbn2(h, test=not self.train)))
         if printing: print('conv2', h.data.shape)
-        h = act(self.cvbn3(self.conv3(h), test=not self.train))
+        h = self.conv3(act(self.cvbn3(h, test=not self.train)))
         if printing: print('conv3', h.data.shape)
-        h = act(self.cvbn4(self.conv4(h), test=not self.train))
+        h = self.conv4(act(self.cvbn4(h, test=not self.train)))
         h = act(self.fc01(h))
         if printing: print('conv4', h.data.shape)
         h = self.enc_lstm1(h)
@@ -87,7 +79,7 @@ class Network(chainer.Chain):
         if printing: print('dlstm2', h.data.shape)
         h = self.dec_lstm3(h)
         if printing: print('dlstm3', h.data.shape)
-        h = act(self.out_signal(h))
+        h = act(h1+self.out_signal(h))
         if printing: print('output', h.data.shape)
         return h
 
