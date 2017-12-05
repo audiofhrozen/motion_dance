@@ -22,7 +22,7 @@ class BPMApp(tk.Tk):
 		self.geometry('640x480')
 		self.configure(background='black')
 		self.bpm_count = []
-		self.delay = 0.02 # in seconds
+		self.delay = 0 
 
 		self.label_init = tk.Label(self, text='Press any key to record the beat...\n ', bg='black', fg='white', 
 			font=('Comic Sans MS', 12))
@@ -54,7 +54,8 @@ class BPMApp(tk.Tk):
 			self.cnt='.'
 		self.v_cnt.set(self.cnt)
 
-	def PlaySound(self, audiosample):
+	def PlaySound(self, audiosample, delay):
+		self.delay = delay
 		self.player = pyglet.media.Player()
 		self.music_file = pyglet.media.load(audiosample)
 		sound_thread = Thread(target=self.startPlaying)
@@ -70,6 +71,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument('--out', '-o', type=str, help='Directory to save the file')
 argparser.add_argument('--pfx', '-p', type=str, help='Prefix save file')
 argparser.add_argument('--wav', '-w', type=str, help='Wavefile')
+argparser.add_argument('--delay', '-d', type=float, help='Delay of the beat in sec(s)', default=0.02)
 args=argparser.parse_args()
 
 def main():
@@ -77,7 +79,7 @@ def main():
 	print("Press Enter key to begin or Ctrl+C to Exit...")
 	raw_input()
 	root = BPMApp()
-	root.PlaySound(args.wav)
+	root.PlaySound(args.wav, args.delay)
 	root.mainloop()
 	pyglet.app.exit()
 
@@ -89,12 +91,6 @@ def main():
 	beats = '\n'.join(beats)
 	with open(fileout, 'w+') as f:
 		f.write(beats)
-	#if os.path.exists(fileout):
-	#	os.remove(fileout)
-
-	#with h5py.File(fileout,'a') as f:
-	#	dset = f.create_dataset('beats', data= root.bpm_count)
-
 	print('Record Finished')
 	return
 
