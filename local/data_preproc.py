@@ -8,12 +8,9 @@ import numpy as np
 from scipy.io import wavfile 
 from python_utils.audio import *
 from motion_config import Configurations
-from transforms3d.euler import euler2quat
+from transforms3d.euler import euler2quat, quat2euler
 from python_utils.print_utils import print_info, print_warning, print_error
-
-def deg2rad(degrees):
-    radians = (degrees * np.pi) /180.0 
-    return radians
+from python_utils.maths import deg2rad, rad2deg
 
 def calculate_minmax(fileslist):
     print_info('### MinMax file not found...')
