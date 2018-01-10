@@ -9,14 +9,17 @@
 # general configuration
 
 net="lstm"
-rot="euler"
+rot="quat"
 exp="bpm"
-graphs=false
 stage=0
-exp_name=$(date +"%Y-%m-%d_%H%M")
-epochs=5
+
+epoch=5
 batch=50
 display_log=1000
+gpu=0
+workers=4
+sequence=150
+
 
 while test $# -gt 0
 do
@@ -47,35 +50,125 @@ do
     shift
     shift
 done
+frame_align=3
+motion_align=15
+fps=30
+wlen=160
+hop=80
+frqsmp=16000
+silence=30
+scale=100.0
+encoder=CNNEncode
 
+exp_name="$exp"_"$net"_"$rot"
+LSTM_units=500
+CNN_outs=65
+network="./models/net_$net.py"
+
+
+if [ rot=='quat' ]; then
+  Net_out=71
+elif [ rot=='euler' ]; then
+  Net_out=54
+fi
+
+echo "============================================================"
+echo "                        DeepDancer"
+echo "============================================================"
+
+
+exp_name="$exp"_"$net"_"$rot"
+exp_folder=./exp/$exp_name
+
+echo "----- Exp: $exp_name"
 if [ $stage -le -1 ]; then
-  echo "============================================================"
-  echo "                       Data Download                        "
-  echo "============================================================"
+  echo "Data Download"
   local/getdata.sh 
 fi
 
-if [ $stage -le 0 ]; then
-  echo "============================================================"
-  echo "                       Data Preparation                     "
-  echo "============================================================"
-  out=$DATA_ROOT/training
-  local/prepare_data.sh $out $exp $rot $graphs ./exp/training_files/$exp_name
+if [ $stage -le 0 ]; then 
+  mkdir -p $exp_folder/annots $exp_folder/data $exp_folder/minmax
+  trn_lst=$exp_folder/annots/train.lst
+  tst_lst=$exp_folder/annots/test.lst
+  find $DATA_EXTRACT/MOCAP/HTR/ -name $exp'*.htr' | sort -u > $trn_lst
+  find $DATA_EXTRACT/MOCAP/HTR/ -name 'test_'$exp'*.htr' | sort -u > $tst_lst
+  echo "----- Preparing training annotations..."
+  local/annot_eval.py -l $trn_lst -e $exp -o $exp_folder/annots -m $motion_align -a $frame_align -f $fps -s "train" || exit 1
+  echo "----- Preparing test annotations..."
+  local/annot_eval.py -l $tst_lst -e $exp -o $exp_folder/annots -m $motion_align -a $frame_align -f $fps -s "test" || exit 1
 fi
 
-if [ $stage -le 1 ]; then
-  echo "============================================================"
-  echo "                       Training Network                     "
-  echo "============================================================"
-  bin/chainer_train.py t -D $exp_name -C ./conf/train_"$net"_"$rot"_"$exp".cfg || exit 1
+echo "----- End-to-End stage"
+
+if [ $stage -le 1 ]; then 
+  echo "----- Preparing training data for motion ..."
+  local/data_preproc.py --type motion --exp $exp --list $exp_folder/annots/train_files_align.txt \
+                        --save $exp_folder --rot $rot --snr 0 --silence $silence --fps $fps\
+                        --hop $hop --wlen $wlen --scale $scale || exit 1
+  #TODO: Add preparation for testing/validation during training (Need Larger dataset or to split in parts the whole sequence)
 fi
 
 if [ $stage -le 2 ]; then
-  echo "============================================================"
-  echo "                       Evaluating Network                   "
-  echo "============================================================"
-  echo $exp_name
-  local/evaluate.py --folder ./exp/training_files/$exp_name --data $DATA_ROOT/extracted --exp $exp --rot $rot
+  echo "Training Network "
+  local/train_dance_rnn.py --folder $exp_folder/data --config ./conf/train_"$net".json \
+                        --batch $batch --gpu $gpu --epoch $epoch --workers $workers \
+                        --save $exp_folder/trained/endtoend --network $network \
+                        --encoder $encoder || exit 1
 fi
+
+tst_lst=$exp_folder/annots/test_files_align.txt 
+
+if [ $stage -le 3 ]; then
+  echo "Evaluating Network"
+  mkdir -p $exp_folder/evaluation $exp_folder/results
+  local/evaluate.py --folder $exp_folder --list $tst_lst --exp $exp --rot $rot \
+                    --network $network --initOpt $LSTM_units $CNN_outs $Net_out \
+                    --fps $fps --scale $scale --model $exp_folder/trained/endtoend/trained.model \
+                    --snr 20 10 0 --freq $frqsmp --hop $hop --wlen $wlen --encoder $encoder \
+                    --stage "end2end" --alignframe $frame_align || exit 1
+fi
+
+#exit 0
+echo "----- Denoise Stage"
+
+if [ $stage -le 4 ]; then
+  echo "--- Preparing training data for denoising ..."
+  local/data_preproc.py --type denoise --exp $exp --list $exp_folder/annots/train_files_align.txt \
+                        --save $exp_folder --rot $rot --snr 45 20 10 0 --silence $silence --fps $fps \
+                        --hop $hop --wlen $wlen --scale $scale|| exit 1
+
+  local/post_audio.py --folder $exp_folder/data --dims $CNN_outs --network $network \
+                      --pretrain $exp_folder/trained/endtoend/trained.model --stage "train"  \
+                      --encoder $encoder --initOpt $LSTM_units $CNN_outs $Net_out || exit 1 
+fi
+
+if [ $stage -le 5 ]; then
+  echo "Training Network "
+  local/train_denoise_gan.py --folder $exp_folder/data --batch $batch  \
+                        --gpu $gpu --epoch $((epoch*30)) --workers $workers \
+                        --save $exp_folder/trained/denoised --initOpt $CNN_outs \
+                        --dataset "AudioHDF5" --network $network --generator "$encoder" || exit 1 
+fi
+
+if [ $stage -le 6 ]; then
+  echo "Merging trained models"
+  local/mix_models.py --network $network --encoder $encoder \
+                      --endtoend  $exp_folder/trained/endtoend/trained.model \
+                      --denoise $exp_folder/trained/denoised/generator_trained.model \
+                      --initOpt $LSTM_units $CNN_outs $Net_out \
+                      --save $exp_folder/trained/denoised || exit 1 
+fi
+
+if [ $stage -le 7 ]; then
+  echo "Evaluating Network"
+  mkdir -p $exp_folder/evaluation $exp_folder/results
+  local/evaluate.py --folder $exp_folder --list $tst_lst --exp $exp --rot $rot \
+                    --network $network --initOpt $LSTM_units $CNN_outs $Net_out \
+                    --fps $fps --scale $scale --stage "denoise" --snr 20 10 0 \
+                    --freq $frqsmp --hop $hop --wlen $wlen --encoder $encoder \
+                    --model $exp_folder/trained/denoised/optimized.model \
+                    --alignframe $frame_align
+fi
+
 
 echo "`basename $0` Done."

@@ -5,175 +5,133 @@ from __future__ import print_function
 import os, sys, h5py, argparse, glob
 from scipy import signal
 import numpy as np
+from madmom.features import beats
+from motion_format import motionread, calculate_rom, extract_beats, JOINTS
 import BTET.beat_evaluation_toolbox as be
-from distutils.util import strtobool
 
-parser = argparse.ArgumentParser(description='BPM Evaluation')
-parser.add_argument('--folder', '-f', type=str, help='Motion data folder')
-parser.add_argument('--exp', '-e', type=str, help='Experiment type')
-parser.add_argument('--display', '-d', type=str, help='Display Plot')
-parser.add_argument('--output', '-o', type=str, help='Save Image')
-args = parser.parse_args()
 
-if not bool(strtobool(args.display)):
-    import matplotlib as mpl
-    mpl.use('Agg')
+try:
+  disp=os.environ['DISPLAY']
+except Exception as e:
+  import matplotlib as mpl
+  mpl.use('Agg')
+  pass
+    
 from matplotlib import pyplot as plt
 
-_NUM, _DEN = signal.butter(3, 0.05)
-
+def RNNbpm(filename):
+  proc = beats.BeatTrackingProcessor(fps=100)
+  act = beats.RNNBeatProcessor()(filename)
+  bpm = proc(act)
+  bpm = np.unique(bpm)
+  return bpm
 
 def plot_vals(labels, means, stds, comp, title, idx):
-    ind = np.arange(len(labels))
-    width = 0.25
-    fig, ax = plt.subplots()
-    rects = [None] *means.shape[1]
-    colors = ['r', 'b', 'g']
-    for i in range(means.shape[1]):
-        rects[i] = ax.bar(ind + i*width, means[:,i], width, color=colors[i], yerr=[stds[:,i,0],stds[:,i,1]]) #
-    #rects2 = ax.bar(ind + width, means[:,1], width, color='b', yerr=[stds[:,1,0],stds[:,1,1]]) #
-    ax.set_title(title)
-    ax.set_xticks(ind + width*i / 2)
-    ax.set_xticklabels(labels, rotation=40)
-    ax.legend(rects, comp)
-    if args.display:
-        plt.show()
-    fig.savefig('{}/init_bpm_results_{}.png'.format(args.output, idx))
-    return
-
-def catch_hark_bpm(filename):
-    with open(filename) as f:
-        readdata = f.read().split('\n')
-    beats=[]
-    for i in range(len(readdata)):
-        if readdata[i].startswith('Beat detected'):
-            beat=float(readdata[i].replace('Beat detected at time: ', ''))
-            beats+=[(160*beat)/16000]
-    beats = np.asarray(beats)
-    return beats
-
-def catch_from_htr(filename):
-    with open(filename, 'rb') as f:
-        _DATA_FILE = f.read().split('\r\n')
-        num_frames = int(_DATA_FILE[5].split(' ')[1])
-
-    _PARTS = ['pelvis', 'head', 'neck_01', 'spine_01', 'spine_02', 'upperarm_l', 'upperarm_r', 'lowerarm_l', 
-        'lowerarm_r', 'thigh_l', 'thigh_r', 'calf_l', 'calf_r', 'foot_l', 'foot_r', 'clavicle_l', 'pelvis']
-    _ROTATIONS = np.zeros((len(_PARTS),num_frames,3), dtype=np.float32)
-
-    for i in range(len(_PARTS)):
-        k = _DATA_FILE.index('[{}]'.format(_PARTS[i]))
-        for j in range(num_frames):
-            _tmp_data = np.asarray([float(x) for x in _DATA_FILE[k+j+1].split('\t')])
-            _ROTATIONS[i,j] = _tmp_data[1:4] if i == 0 else _tmp_data[4:7]  #Position Translation 1,4 ; Rotations 4,7#_tmp_data 
-
-    for i in [0]: #0,7,8,11,12 
-        new_signal = signal.filtfilt(_NUM, _DEN, np.gradient(_ROTATIONS[i,:,0]))
-        zero_crossings = np.where(np.diff(np.signbit(new_signal)))[0].astype(np.float64)
-    return (zero_crossings/30.0)
-
-
-def catch_from_h5(filename):
-    with open(filename, 'rb') as f:
-        _DATA_FILE = f.read().split('\r\n')
-        num_frames = int(_DATA_FILE[5].split(' ')[1])
-
-    _PARTS = ['pelvis', 'head', 'neck_01', 'spine_01', 'spine_02', 'upperarm_l', 'upperarm_r', 'lowerarm_l', 
-        'lowerarm_r', 'thigh_l', 'thigh_r', 'calf_l', 'calf_r', 'foot_l', 'foot_r', 'clavicle_l', 'pelvis']
-    _ROTATIONS = np.zeros((len(_PARTS),num_frames,3), dtype=np.float32)
-
-    for i in range(len(_PARTS)):
-        k = _DATA_FILE.index('[{}]'.format(_PARTS[i]))
-        for j in range(num_frames):
-            _tmp_data = np.asarray([float(x) for x in _DATA_FILE[k+j+1].split('\t')])
-            _ROTATIONS[i,j] = _tmp_data[1:4] if i == 0 else _tmp_data[4:7]  #Position Translation 1,4 ; Rotations 4,7#_tmp_data 
-
-    for i in [0]: #0,7,8,11,12 
-        new_signal = signal.filtfilt(_NUM, _DEN, np.gradient(_ROTATIONS[i,:,0]))
-        zero_crossings = np.where(np.diff(np.signbit(new_signal)))[0].astype(np.float64)
-    return (zero_crossings/30.0)
-
+  ind = np.arange(len(labels))
+  width = 0.25
+  fig, ax = plt.subplots()
+  rects = [None] *means.shape[1]
+  colors = ['r', 'b', 'g']
+  for i in range(means.shape[1]):
+    rects[i] = ax.bar(ind + i*width, means[:,i], width, color=colors[i], yerr=[stds[:,i,0],stds[:,i,1]]) #
+  rects2 = ax.bar(ind + width, means[:,1], width, color='b', yerr=[stds[:,1,0],stds[:,1,1]]) #
+  ax.set_title(title)
+  ax.set_xticks(ind + width*i / 2)
+  ax.set_xticklabels(labels, rotation=40)
+  ax.legend(rects, comp)
+  fig.savefig('{}/init_bpm_results_{}.png'.format(args.output, idx))
+  return
 
 def main():
-    filelist = glob.glob('{}/{}_*'.format(args.folder, args.exp)) 
-    per_bpm = []
-    hark_bpm = []
-    mad_bpm = []   
-    mot_bpm = []
-    for fn in filelist:
-        print(fn)
-        mot_bpm += [catch_from_htr(fn)]  
+  with open(args.list) as f:
+    filelist = f.readlines()
+    filelist = [x.split('\n')[0] for x in filelist]
 
-        per_fn = fn.replace('MOCAP/HTR/{}_'.format(args.exp), 'Annotations/PER/')
-        per_fn = per_fn.replace('.htr', '_user_1.h5')
-        if per_bpm is not None:
-            try:
-                with h5py.File(per_fn) as f:
-                    beats = np.zeros(f['beats'].shape)
-                    np.copyto(beats, f['beats'])
-                    beats = np.unique(beats)
-                per_bpm += [beats]
-            except Exception as e:
-                print('No annotation files from user found, skipping evaluations from user')
-                per_bpm = None
-
-        hark_fn = per_fn.replace('PER', 'HARK')
-        hark_fn = hark_fn.replace('_user_1.h5', '.txt')
-        hark_bpm += [catch_hark_bpm(hark_fn)]      
-
-        mad_fn = hark_fn.replace('HARK', 'MADMOM')
-        mad_fn = mad_fn.replace('txt', 'h5')
-        with h5py.File(mad_fn) as f:
-            bpm = np.zeros(f['bpm'].shape)
-            np.copyto(bpm, f['bpm'])
-            bpm = np.unique(bpm)
-        mad_bpm +=[bpm]
-    evals_name = ['fMeasure', 'cemgilAcc', 'gotoAcc', 'pScore', 'cmlC', 'cmlT', 'amlC', 'amlT']#R_hark['scores'].keys()
-
-    if per_bpm is not None:
-        print('Evaluating HARK bpm')
-        R_hark = be.evaluate_db(per_bpm,hark_bpm,measures='all', doCI=True)
-
-        print('Evaluating MADMOM bpm')
-        R_mad = be.evaluate_db(per_bpm,mad_bpm,measures='all', doCI=True)
-
-        print('Evaluating MOTION bpm')
-        R_mot = be.evaluate_db(per_bpm,mot_bpm,measures='all', doCI=True)
-
-        results =[R_hark, R_mad, R_mot]
-        
-        evals_mean = np.zeros((len(evals_name), len(results)))
-        evals_std = np.zeros((len(evals_name), len(results),2))
-        for i in range(len(evals_name)):
-            for j in range(len(results)):
-                evals_mean[i,j] = results[j]['scores_mean'][evals_name[i]]
-                evals_std[i, j, 0] = np.abs(results[j]['scores_conf'][evals_name[i]][0] - evals_mean[i,j])
-                evals_std[i, j, 1] = np.abs(results[j]['scores_conf'][evals_name[i]][1] - evals_mean[i,j])
-        res_label=['HARK', 'Madmom', 'Dancer']
-        plot_vals(evals_name, evals_mean, evals_std, res_label, 'Bootstrapping 95% confidence interval w.r.t. annotator', 1)
+  music_beat = []
+  mad_beat = []
+  for fn in filelist:
+    print(fn)
     
-    print('Evaluating HARK-MOTION bpm')
-    R_hark = be.evaluate_db(hark_bpm, mot_bpm,measures='all', doCI=True)
+    music_fn = fn.replace('MOCAP/HTR', 'Annotations/corrected')
+    music_fn = music_fn.replace('{}_'.format(args.exp), '')
+    music_fn = music_fn.replace('test_', '')
+    music_fn = music_fn.replace('.htr', '.txt')
+    try:
+      music_beat += [np.unique(np.loadtxt(music_fn))]
+    except Exception as e:
+      raise ValueError('No music beat annotations found, prepare first the beat annotations.')
 
-    print('Evaluating MADMOM-MOTION bpm')
-    R_mad = be.evaluate_db(mad_bpm,mot_bpm,measures='all', doCI=True)
+    wav_fn = fn.replace('MOCAP/HTR', 'AUDIO/WAVE')
+    wav_fn = wav_fn.replace('{}_'.format(args.exp), '')
+    wav_fn = wav_fn.replace('test_', '')
+    wav_fn = wav_fn.replace('.htr', '.wav')
+    if not os.path.exists(wav_fn):
+      mp3_fn = wav_fn.replace('WAVE', 'MP3')
+      mp3_fn = mp3_fn.replace('wav', 'mp3')
+      print('Wavefile not found in folder, converting from mp3 file.')
+      os.system('sox {} -c 1 -r 16000 {}'.format(mp3_fn, wav_fn))
 
-    results =[R_hark, R_mad]
-    if per_bpm is not None:
-        results = [R_mot] +results
-    evals_mean = np.zeros((len(evals_name), len(results)))
-    evals_std = np.zeros((len(evals_name), len(results),2))
-    for i in range(len(evals_name)):
-        for j in range(len(results)):
-            evals_mean[i,j] = results[j]['scores_mean'][evals_name[i]]
-            evals_std[i, j, 0] = np.abs(results[j]['scores_conf'][evals_name[i]][0] - evals_mean[i,j])
-            evals_std[i, j, 1] = np.abs(results[j]['scores_conf'][evals_name[i]][1] - evals_mean[i,j])
+    mad_beat +=[RNNbpm(wav_fn)]
 
-    res_label=['HARK', 'Madmom']
-    if per_bpm is not None:
-        res_label= ['Dancer'] +res_label
-    plot_vals(evals_name, evals_mean, evals_std, res_label, 'Bootstrapping 95% confidence interval of dancer w.r.t. BPM Trackers',2)
+  evals_name = ['fMeasure']
+
+  print('Aligning motion files with each music...')
+  motion_beat = []
+  align_idx = []
+  for i in range(len(music_beat)):
+    _rot_quats = motionread(filelist[i], 'htr', 'quat', JOINTS)
+    #with h5py.File('prueba1.h5', 'a') as f:
+    #  ds = f.create_dataset('rot', data=_rot_quats)
+    #exit()
+    music_beat_frame = np.asarray(music_beat[i]*float(args.fps), dtype=np.int)
+    precission = np.zeros((args.motionrange))
+    align_beat = []
+    for j in range(args.motionrange):
+      rot_quats = _rot_quats[j:]
+      motion_beat_frame = calculate_rom(rot_quats, args.alignframe)
+      motion_beat_frame = extract_beats(music_beat_frame, motion_beat_frame, args.alignframe)
+      align_beat += [motion_beat_frame.astype(np.float)/float(args.fps)]
+      _, precission[j], _, _ = be.fMeasure(music_beat[i] , align_beat[j])
+    align_idx += [np.where(precission==np.amax(precission))[0][0]] 
+    motion_beat += [align_beat[align_idx[i]]]
+
+  print('Evaluating MADMOM bpm')
+  R_mad = be.evaluate_db(music_beat,mad_beat,measures='fMeasure', doCI=True)
+  print('Evaluating MOTION bpm')
+  R_mot = be.evaluate_db(music_beat,motion_beat,measures='fMeasure', doCI=True)
+
+  with open('{}/init_results'.format(args.output), 'w+') as f:
+    f.write('fScore Music-Madmom: {:.4f}\n'.format(R_mad['scores_mean']['fMeasure']))
+    f.write('fScore Music-Motion: {:.4f}'.format(R_mot['scores_mean']['fMeasure']))
+
+  results =[R_mad, R_mot]
+  
+  evals_mean = np.zeros((len(evals_name), len(results)))
+  evals_std = np.zeros((len(evals_name), len(results),2))
+  for i in range(len(evals_name)):
+    for j in range(len(results)):
+      evals_mean[i,j] = results[j]['scores_mean'][evals_name[i]]
+      evals_std[i, j, 0] = np.abs(results[j]['scores_conf'][evals_name[i]][0] - evals_mean[i,j])
+      evals_std[i, j, 1] = np.abs(results[j]['scores_conf'][evals_name[i]][1] - evals_mean[i,j])
+  res_label=['Madmom', 'Dancer']
+  plot_vals(evals_name, evals_mean, evals_std, res_label, 'Bootstrapping 95% confidence interval w.r.t. music beat', 1)
+  
+
+  align_txt = [ '{}\t{}'.format(filelist[i], align_idx[i]) for i in range(len(music_beat))]
+  align_txt = '\n'.join(align_txt)
+  with open('{}/{}_files_align.txt'.format(args.output, args.stage), 'w+') as f:
+    f.write(align_txt)
+  print('\nDone')
 
 if __name__=='__main__':
-    main()
+  parser = argparse.ArgumentParser(description='BPM Evaluation')
+  parser.add_argument('--list', '-l', type=str, help='File list')
+  parser.add_argument('--exp', '-e', type=str, help='Experiment type')
+  parser.add_argument('--output', '-o', type=str, help='Folder to save')
+  parser.add_argument('--alignframe', '-a', type=int, help='Frames allowed to align', default=0)
+  parser.add_argument('--motionrange', '-m', type=int, help='Range allowed between music and motion files', default=0)
+  parser.add_argument('--fps', '-f', type=int, help='Motion file FPS', default=0)
+  parser.add_argument('--stage', '-s', type=str, help='Train or Test')
+  args = parser.parse_args()
+  main()
 
