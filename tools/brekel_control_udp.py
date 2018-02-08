@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -13,7 +14,7 @@ args = parser.parse_args()
 
 UDP_IP = "192.168.170.110"
 UDP_PORT = 8880
-SLEEP = 8
+SLEEP = 15
 PID = os.getpid()
 Computer_Name = socket.gethostname()
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP

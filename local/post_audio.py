@@ -65,8 +65,8 @@ def main():
         outfile = '{}f{:03d}.h5'.format(prefix, i*nsnr + j)
         with h5py.File(outfile, 'a') as h:
           ds = h.create_dataset('input', data=f[keys[j]])
-          ds = h.create_dataset('marg_min', data=targetc)
-          ds = h.create_dataset('marg_max', data=targetn)
+          ds = h.create_dataset('cleanfeats', data=targetc)
+          #ds = h.create_dataset('marg_max', data=targetn)
   print_info('PostAudio done')
 
 if __name__=='__main__':

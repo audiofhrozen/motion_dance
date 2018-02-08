@@ -2,23 +2,21 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import warnings
-warnings.filterwarnings('ignore')
+
 import signal, timeit, json, imp, importlib, argparse
-import sys, os
+import sys, os, h5py
 import numpy as np
 from sys import stdout 
 from utillib.print_utils import print_info, print_warning, print_error
 
 import chainer
+from chainer import computational_graph as Graph
 from chainer import iterators, serializers, training
-from chainer.training import extensions
 import chainer.optimizers as O
 from chainer.optimizer import GradientNoise, GradientClipping
 from chainerui.extensions import CommandsExtension
 from chainerui.utils import save_args
-import matplotlib
-matplotlib.use('Agg')
+from chainer.training import extensions
 
 def convert(batch, device):
   in_audio, context, nx_step = batch[0]
@@ -28,9 +26,10 @@ def convert(batch, device):
     nx_step = np.concatenate((nx_step, batch[i][2]), axis=0)
 
   if device>= 0:
-    in_audio = chainer.cuda.to_gpu(in_audio)
-    context =  chainer.cuda.to_gpu(context)
-    nx_step = chainer.cuda.to_gpu(nx_step)
+      in_audio = chainer.cuda.to_gpu(in_audio)
+      context =  chainer.cuda.to_gpu(context)
+      nx_step = chainer.cuda.to_gpu(nx_step)
+  
   return [in_audio, context, nx_step]
 
 class BPTTUpdater(training.updater.StandardUpdater):
@@ -52,7 +51,24 @@ class BPTTUpdater(training.updater.StandardUpdater):
     loss.unchain_backward()
     optimizer.update()
 
+    
 model = None
+class Configuration(object):
+  def __init__(self, Args):
+    self.jfile = json.load(open(Args.config))
+    self.datafolder = Args.folder
+    self.dsdata = self.jfile['dataset']['data']
+    self.dsclass = self.jfile['dataset']['class']
+    self.gpu = Args.gpu
+    self.epoch = Args.epoch
+    self.net_init = self.jfile['network']['init_opts']
+    self.gaussian = self.jfile['train']['gaussian']
+    self.recurrent = self.jfile['train']['recurrent']
+    if self.gaussian:
+      self.eta = self.jfile['train']['eta_gn']
+    self.use_clip = self.jfile['train']['use_clip']
+    if self.use_clip:
+      self.clip_threshold = self.jfile['train']['clip_threshold']
  
 def signal_handler(signal, frame):
     print_warning('Previous Finish Training... ')
@@ -66,55 +82,58 @@ signal.signal(signal.SIGINT, signal_handler)
  
 def main():
   global model
+  if not os.path.exists(args.config):
+    raise ValueError('The file {} cannot be found, please check the location of the file'.format(args.config))
+  config = Configuration(args)
   print_info('Training model: {}'.format(args.network))
   net = imp.load_source('Network', args.network)
-  audionet = imp.load_source('Network', './models/audio_nets.py')
-  model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
-  if args.gpu >= 0:
+  encoder = getattr(net, args.encoder)
+  model = net.Dancer(config.net_init, encoder)
+
+  if config.gpu >= 0:
     if chainer.cuda.available:
-      chainer.cuda.get_device_from_id(args.gpu).use()
-      chainer.config.cudnn_deterministic = False
+      chainer.cuda.get_device_from_id(config.gpu).use()
       names_gpu = os.popen('lspci | grep NVIDIA | grep controller').read().split('\n')
       try:
-        _, gpu_name = names_gpu[args.gpu].split('[')
+        _, gpu_name = names_gpu[config.gpu].split('[')
         gpu_name, _ = gpu_name.split(']')
       except:
         gpu_name = ''
-      print_info('GPU: {} - {}'.format(args.gpu, gpu_name))
+      print_info('GPU: {} - {}'.format(config.gpu, gpu_name))
       model.to_gpu()
     else:
       print_warning('No GPU was found, the training will be executed in the CPU')
-      args.gpu = -1
+      config.gpu = -1
 
   print_info('Minibatch-size: {}'.format(args.batch))
-  print_info('# epoch: {}'.format(args.epoch))
+  print_info('# epoch: {}'.format(config.epoch))
   
-  DBClass = importlib.import_module('utillib.chainer.dataset_hdf5')
+  DBClass = importlib.import_module('utillib.chainer.{}'.format(config.dsdata))
   try:
-    trainset = getattr(DBClass,args.dataset)(args.folder, args.sequence, 'train')
+    trainset = getattr(DBClass,config.dsclass)(config, 'train')
+    #TrainUpdater = getattr(DBClass,'TrainUpdater')
   except Exception as e:
     print_warning('Cannot continue with the training, Failing Loading Data... ')
     raise TypeError(e)
 
   try:
-    testset = getattr(DBClass,args.dataset)(args.folder, args.sequence, 'test')
+    testset = getattr(DBClass,config.dsclass)(config, 'test')
   except Exception as e:
     print_warning('Cannot find testing files, test stage will be skipped... ')
     testset = None
 
-  def make_optimizer(net, alpha=0.0002, beta1=0.5):
-    optimizer = O.Adam(alpha=alpha, beta1=beta1)
-    optimizer.setup(net)
-    print_info('Adding Gradient Clipping Hook')
-    optimizer.add_hook(GradientClipping(10.), 'hook_clip')
+  optimizer = O.Adam(alpha=0.0002, beta1=0.5)
+  optimizer.setup(model)
+  if config.gaussian:
     print_info('Adding Gradient Noise Hook')
-    optimizer.add_hook(GradientNoise(0.01), 'hook_noise')
-    return optimizer
-
-  optimizer = make_optimizer(model)
+    optimizer.add_hook(GradientNoise(config.eta))
+  if config.use_clip:
+    print_info('Adding Gradient Clipping Hook')
+    optimizer.add_hook(GradientClipping(config.clip_threshold))
 
   train_iter = iterators.MultiprocessIterator(trainset, batch_size=args.batch, shuffle=True, n_processes=args.workers, \
       n_prefetch=args.workers) 
+
 
   if testset is not None:
     test_iter = iterators.SerialIterator(testset, batch_size=args.batch, repeat=False, shuffle=False)
@@ -132,7 +151,7 @@ def main():
   trainer.extend(extensions.ProgressBar())
 
   trainer.extend(extensions.observe_lr())
-  #trainer.extend(CommandsExtension())
+  trainer.extend(CommandsExtension())
   save_args(args, args.save)
   trainer.run()
 
@@ -143,9 +162,9 @@ def main():
 
 if __name__=='__main__':
   parser = argparse.ArgumentParser(description='Training Program based on Chainer Framework')
-  parser.add_argument('--dataset', '-d', type=str, help='Dataset File')
   parser.add_argument('--batch', '-b', type=int, help='Minibatch size', default=50)
-  parser.add_argument('--encoder', '-o', type=str, help='Encoder type')
+  parser.add_argument('--config', '-c', type=str, help='Configuration File')
+  parser.add_argument('--encoder', '-d', type=str, help='Encoder type')
   parser.add_argument('--epoch', '-e', type=int, help='Training epochs', default=1)
   parser.add_argument('--folder', '-f', type=str, help='Dataset Location')
   parser.add_argument('--gpu', '-g', type=int, help='GPU id to use, if -1 the operations will be executed in CPU', default=0)
@@ -154,7 +173,6 @@ if __name__=='__main__':
   parser.add_argument('--frequency', '-r', type=int, default=-1, help='Frequency of taking a snapshot')
   parser.add_argument('--save', '-s', type=str, help='Folder of the model to save')
   parser.add_argument('--workers', '-w', type=int, help='Number of worker processes', default=1)
-  parser.add_argument('--sequence', '-q', type=int, help='Training sequence', default=1)
   args = parser.parse_args()
 
   v = chainer.__version__

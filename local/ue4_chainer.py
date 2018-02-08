@@ -1,17 +1,13 @@
 #!/usr/bin/python
 
-import signal, OSC, argparse, colorama, h5py #install pyOSC
+import signal, OSC, argparse, colorama, h5py, sys #install pyOSC
 from time import sleep
 import numpy as np
 from sys import stdout
 from transforms3d.euler import euler2quat, quat2euler
 from utillib.maths import deg2rad, rad2deg
- 
-parser = argparse.ArgumentParser(description='UE4-Python OSC connection')
-parser.add_argument('--hdf5', '-d', type=str, help='File for motion generation in HDF5 format')
-parser.add_argument('--htr', '-t', type=str, help='File for motion generation in HTR format')
-parser.add_argument('--port', '-p', type=int, help='File for motion generation in HTR format', default=6060)
-args = parser.parse_args()
+from utillib.print_utils import print_info, print_warning, print_error
+
 
 list_address = ['PosBody', 'RotPelvis', 'RotHead', 'RotNeck','RotSpine1','RotSpine2','RotLeftUp','RotRightUp', #last indx: 7
   'RotLeftLow', 'RotRightLow','RotLeftThigh','RotRightThigh', 'RotLeftCalf', 'RotRightCalf', 'RotLeftFoot',  #last indx: 14
@@ -26,7 +22,7 @@ _HEIGHT_CH = 100.0
 
 # TODO: Need to get configuration from files
 def signal_handler(signal, frame):
-    print_warning('Bye...  ')
+    print_warning('\nBye...  ')
     sys.exit(0)
 
 def from_nn_file(filename):
@@ -94,5 +90,10 @@ def main():
 if __name__ == '__main__':
   colorama.init()
   signal.signal(signal.SIGINT, signal_handler) 
+  parser = argparse.ArgumentParser(description='UE4-Python OSC connection')
+  parser.add_argument('--hdf5', '-d', type=str, help='File for motion generation in HDF5 format')
+  parser.add_argument('--htr', '-t', type=str, help='File for motion generation in HTR format')
+  parser.add_argument('--port', '-p', type=int, help='File for motion generation in HTR format', default=6060)
+  args = parser.parse_args()
   main()
 

@@ -8,7 +8,7 @@ from chainer import serializers
 from utillib.print_utils import print_info
 
 def main():
-  print_info('Training model: {}'.format(args.network))
+  print_info('Definition model: {}'.format(args.network))
   net = imp.load_source('Network', args.network)
   encoder = getattr(net, args.encoder)
   model = net.Dancer(args.initOpt, encoder)

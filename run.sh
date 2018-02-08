@@ -8,12 +8,12 @@
 
 # general configuration
 
-net="lstm"
+net="s2s"
 rot="quat"
-exp="bpm"
+exp="sequence"
 stage=0
 
-epoch=5
+epoch=10
 batch=50
 display_log=1000
 gpu=0
@@ -52,13 +52,13 @@ do
 done
 frame_align=3
 motion_align=15
-fps=30
+fps=35
 wlen=160
 hop=80
 frqsmp=16000
-silence=30
+silence=10
 scale=100.0
-encoder=CNNEncode
+featexctrat=CNNFeat # RESEncode 
 
 exp_name="$exp"_"$net"_"$rot"
 LSTM_units=500
@@ -79,6 +79,7 @@ echo "============================================================"
 
 exp_name="$exp"_"$net"_"$rot"
 exp_folder=./exp/$exp_name
+exp_data=./exp/data/"$exp"_"$rot"
 
 echo "----- Exp: $exp_name"
 if [ $stage -le -1 ]; then
@@ -87,48 +88,51 @@ if [ $stage -le -1 ]; then
 fi
 
 if [ $stage -le 0 ]; then 
-  mkdir -p $exp_folder/annots $exp_folder/data $exp_folder/minmax
-  trn_lst=$exp_folder/annots/train.lst
-  tst_lst=$exp_folder/annots/test.lst
+  mkdir -p $exp_data/annots 
+  trn_lst=$exp_data/annots/train.lst
+  tst_lst=$exp_data/annots/test.lst
   find $DATA_EXTRACT/MOCAP/HTR/ -name $exp'*.htr' | sort -u > $trn_lst
   find $DATA_EXTRACT/MOCAP/HTR/ -name 'test_'$exp'*.htr' | sort -u > $tst_lst
   echo "----- Preparing training annotations..."
-  local/annot_eval.py -l $trn_lst -e $exp -o $exp_folder/annots -m $motion_align -a $frame_align -f $fps -s "train" || exit 1
+  local/annot_eval.py -l $trn_lst -e $exp -o $exp_data/annots -m $motion_align -a $frame_align -f $fps -s "train" || exit 1
   echo "----- Preparing test annotations..."
-  local/annot_eval.py -l $tst_lst -e $exp -o $exp_folder/annots -m $motion_align -a $frame_align -f $fps -s "test" || exit 1
+  local/annot_eval.py -l $tst_lst -e $exp -o $exp_data/annots -m $motion_align -a $frame_align -f $fps -s "test" || exit 1
 fi
 
 echo "----- End-to-End stage"
 
 if [ $stage -le 1 ]; then 
   echo "----- Preparing training data for motion ..."
-  local/data_preproc.py --type motion --exp $exp --list $exp_folder/annots/train_files_align.txt \
-                        --save $exp_folder --rot $rot --snr 0 --silence $silence --fps $fps\
+  mkdir -p $exp_data/data $exp_data/minmax
+  local/data_preproc.py --type motion --exp $exp --list $exp_data/annots/train_files_align.txt \
+                        --save $exp_data --rot $rot --snr 0 --silence $silence --fps $fps\
                         --hop $hop --wlen $wlen --scale $scale || exit 1
   #TODO: Add preparation for testing/validation during training (Need Larger dataset or to split in parts the whole sequence)
 fi
 
 if [ $stage -le 2 ]; then
   echo "Training Network "
-  local/train_dance_rnn.py --folder $exp_folder/data --config ./conf/train_"$net".json \
+  local/train_dance_rnn.py --folder $exp_data/data --sequence $sequence  \
                         --batch $batch --gpu $gpu --epoch $epoch --workers $workers \
                         --save $exp_folder/trained/endtoend --network $network \
-                        --encoder $encoder || exit 1
+                        --encoder $featexctrat --dataset "DanceSeqHDF5" \
+                        --initOpt $LSTM_units $CNN_outs $Net_out  || exit 1
 fi
 
-tst_lst=$exp_folder/annots/test_files_align.txt 
+
+tst_lst=$exp_data/annots/test_files_align.txt 
 
 if [ $stage -le 3 ]; then
   echo "Evaluating Network"
   mkdir -p $exp_folder/evaluation $exp_folder/results
-  local/evaluate.py --folder $exp_folder --list $tst_lst --exp $exp --rot $rot \
+  local/evaluate.py --folder $exp_folder --list $tst_lst --exp $exp --rot $rot --gpu $gpu \
                     --network $network --initOpt $LSTM_units $CNN_outs $Net_out \
                     --fps $fps --scale $scale --model $exp_folder/trained/endtoend/trained.model \
-                    --snr 20 10 0 --freq $frqsmp --hop $hop --wlen $wlen --encoder $encoder \
+                    --snr 20 --freq $frqsmp --hop $hop --wlen $wlen --encoder $featexctrat \
                     --stage "end2end" --alignframe $frame_align || exit 1
 fi
 
-#exit 0
+exit 0
 echo "----- Denoise Stage"
 
 if [ $stage -le 4 ]; then
@@ -145,7 +149,7 @@ fi
 if [ $stage -le 5 ]; then
   echo "Training Network "
   local/train_denoise_gan.py --folder $exp_folder/data --batch $batch  \
-                        --gpu $gpu --epoch $((epoch*30)) --workers $workers \
+                        --gpu $gpu --epoch $((epoch*20)) --workers $workers \
                         --save $exp_folder/trained/denoised --initOpt $CNN_outs \
                         --dataset "AudioHDF5" --network $network --generator "$encoder" || exit 1 
 fi
@@ -161,14 +165,41 @@ fi
 
 if [ $stage -le 7 ]; then
   echo "Evaluating Network"
-  mkdir -p $exp_folder/evaluation $exp_folder/results
   local/evaluate.py --folder $exp_folder --list $tst_lst --exp $exp --rot $rot \
                     --network $network --initOpt $LSTM_units $CNN_outs $Net_out \
                     --fps $fps --scale $scale --stage "denoise" --snr 20 10 0 \
                     --freq $frqsmp --hop $hop --wlen $wlen --encoder $encoder \
                     --model $exp_folder/trained/denoised/optimized.model \
-                    --alignframe $frame_align
+                    --alignframe $frame_align --gpu $gpu
 fi
 
+
+echo "----- GAN End-to-End Stage"
+if [ $stage -le 8 ]; then 
+  echo "----- Preparing training data for motion ..."
+  local/data_preproc.py --type gane2e --exp $exp --list $exp_folder/annots/train_files_align.txt \
+                        --save $exp_folder --rot $rot --snr 0 10 --silence $silence --fps $fps\
+                        --hop $hop --wlen $wlen --scale $scale || exit 1
+  #TODO: Add preparation for testing/validation during training (Need Larger dataset or to split in parts the whole sequence)
+fi
+
+exit 0
+if [ $stage -le 9 ]; then
+  echo "Training Network "
+  local/train_dance_gan.py --folder $exp_folder/data --batch $batch \
+                        --gpu $gpu --epoch $epoch --workers $workers \
+                        --save $exp_folder/trained/gane2e --network $network \
+                        --encoder $encoder || exit 1
+fi
+
+if [ $stage -le 10 ]; then
+  echo "Evaluating Network"
+  mkdir -p $exp_folder/evaluation $exp_folder/results
+  local/evaluate.py --folder $exp_folder --list $tst_lst --exp $exp --rot $rot \
+                    --network $network --initOpt $LSTM_units $CNN_outs $Net_out \
+                    --fps $fps --scale $scale --model $exp_folder/trained/endtoend/trained.model \
+                    --snr 20 10 0 --freq $frqsmp --hop $hop --wlen $wlen --encoder $encoder \
+                    --stage "end2end" --alignframe $frame_align --gpu $gpu || exit 1
+fi
 
 echo "`basename $0` Done."

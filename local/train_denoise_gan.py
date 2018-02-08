@@ -25,17 +25,17 @@ from chainerui.utils import save_args
 from chainer.training import extensions
 
 def convert(batch, device):
-  in_audio, amin, amax = batch[0]
+  in_audio, cleanfeats = batch[0]
   for i in range(1, len(batch)):
     in_audio = np.concatenate((in_audio, batch[i][0]), axis=0)
-    amin = np.concatenate((amin, batch[i][1]), axis=0)
-    amax = np.concatenate((amax, batch[i][2]), axis=0)
+    cleanfeats = np.concatenate((cleanfeats, batch[i][1]), axis=0)
+    #amax = np.concatenate((amax, batch[i][2]), axis=0)
 
   if device>= 0:
       in_audio = chainer.cuda.to_gpu(in_audio)
-      amin =  chainer.cuda.to_gpu(amin)
-      amax =  chainer.cuda.to_gpu(amax)
-  return in_audio, amin, amax
+      cleanfeats =  chainer.cuda.to_gpu(cleanfeats)
+      #amax =  chainer.cuda.to_gpu(amax)
+  return in_audio, cleanfeats#, amax
 
 class Discriminator(chainer.Chain):
   def __init__(self, InitOpt, wscale=0.2):
@@ -69,9 +69,11 @@ class GANUpdater(chainer.training.updater.StandardUpdater):
     batchsize = len(y_fake)
     L4 = F.sum(F.softplus(-y_fake)) / batchsize
     #L5 = F.sum(F.softplus(y_real2)) / args.batch
-    loss = L4  + mse  #+ L5 + mse1 + mse2 +mse3
+    loss = L4 + mse  #+ L5 + mse1 + mse2 +mse3
     chainer.report({'loss': loss}, gen)
     return loss
+
+
 
   def update_core(self):
     gen_optimizer = self.get_optimizer('gen')
@@ -80,18 +82,15 @@ class GANUpdater(chainer.training.updater.StandardUpdater):
     batch = self.get_iterator('main').next()
     gen, dis = self.gen, self.dis
     batchsize = len(batch)
-    noisy, amin, amax = self.converter(batch, self.device)
-    feats = gen(noisy)
-    mse = F.mean_squared_error(amin, feats) 
-
-    _range = amax-amin
-    y_real = dis(_range)#*_range)
-
-    _rng1 = amax-feats
-    y_fake = dis(_rng1)#*_rng1)
+    noisy, cleanfeats = self.converter(batch, self.device)
+    noisyfeats = gen(noisy)
+    #_range = amax-amin
+    y_real = dis(cleanfeats)#*_range)
+    #_rng1 = amax-feats
+    y_fake = dis(noisyfeats)#*_rng1)
     #clean_feat = gen(clean)
     #y_real2 = dis(clean_feat)
-    #mse1 = F.mean_squared_error(target, noisy_feat)
+    mse = F.mean_squared_error(cleanfeats, noisyfeats)
     #mse2 = F.mean_squared_error(target, clean_feat)
     #se3 = F.mean_squared_error(noisy_feat, clean_feat)
     dis_optimizer.update(self.loss_dis, dis, y_fake, y_real)
@@ -158,6 +157,7 @@ def main():
   opt_dis = make_optimizer(dis)
   opt_gen = make_optimizer(gen)
 
+
   train_iter = iterators.MultiprocessIterator(trainset, batch_size=args.batch, shuffle=True, n_processes=args.workers, \
       n_prefetch=args.workers)
 
@@ -178,7 +178,7 @@ def main():
   trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
   trainer.extend(extensions.LogReport(trigger=display_interval))
   trainer.extend(extensions.PrintReport([
-        'epoch', 'iteration', 'gen/loss', 'dis/loss',]), trigger=display_interval)
+        'epoch', 'iteration', 'gen/mse_loss', 'gen/loss', 'dis/loss',]), trigger=display_interval)
 
   #if extensions.PlotReport.available():
   #  trainer.extend(extensions.PlotReport(['gen/loss'], 'epoch', file_name='loss_gen.png'))
