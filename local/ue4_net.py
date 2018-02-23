@@ -3,8 +3,8 @@
 import warnings
 warnings.filterwarnings('ignore')
 import signal, argparse, colorama, h5py
-import sys, threading, platform, vlc, time, imp 
-
+import sys, threading, platform, time, imp 
+from utillib.print_utils import print_info, print_warning, print_error
 from time import sleep
 import numpy as np
 from sys import stdout
@@ -15,7 +15,14 @@ from chainer import cuda, serializers, Variable
 import soundfile
 from transforms3d.euler import quat2euler
 from motion_format import render_motion
-from utillib.print_utils import print_info, print_warning, print_error
+
+try:
+  import vlc
+  vlclib=True
+except Exception as e:
+  print_warning('vlc library was not found')
+  vlclib=False
+  pass
 
 if sys.version_info[0] < 3:
   import OSC #install python-osc
@@ -52,7 +59,8 @@ def datafeed():
   slope = (rng[1]-rng[0]) / (audio_max-audio_min)
   intersec = rng[1] - slope * audio_max
   data_w.put('start')
-  p.play()
+  if vlclib:
+    vlcplayer.play()
   while loc < data_wav.shape[0]:
     t = time.time()
     prv = idxs[i]+fs*sec
@@ -173,7 +181,8 @@ def netdancer():
   return
 
 def signal_handler(signal, frame):
-  p.stop()
+  if vlclib:
+    vlcplayer.stop()
   print('\nBye')
   sys.exit(0)
 
@@ -199,6 +208,7 @@ if __name__ == '__main__':
   parser.add_argument('--height', '-l', type=float, help='Height of the dancer', default=100.0)
   parser.add_argument('--character', '-c', type=str, help='UE Character name definition')
   args = parser.parse_args()
+
   signal.signal(signal.SIGINT, signal_handler) 
   data_w = queue.Queue(maxsize=1)
   chainer.cuda.get_device_from_id(args.gpu).use()
@@ -226,10 +236,11 @@ if __name__ == '__main__':
   audio_max = 5.
   audio_min = -120.
   xp = cuda.cupy
-  p = vlc.MediaPlayer(args.track)
   DATA_FOLDER=os.environ['DATA_EXTRACT']
   with open('{}/Annotations/youtube_links.txt'.format(DATA_FOLDER)) as f:
     links = f.readlines()
   flname = os.path.basename(args.track).split('.')[0]
   videolink = [ x.split('\t')[1] for x in links if flname in x ][0]
+  if vlclib:
+    vlcplayer = vlc.MediaPlayer(args.track)
   main()
