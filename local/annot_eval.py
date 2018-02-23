@@ -86,6 +86,10 @@ def main():
     databeats = readfromfile(fn,'Annotations/madmom')
     if databeats is None:
       databeats = procesmadmomRNN(proc, fn)
+      mdmfn = fn.replace('MOCAP/HTR', 'Annotations/madmom') 
+      mdmfn = mdmfn.replace('{}_'.format(args.exp), '')
+      mdmfn = mdmfn.replace('.htr', '.txt')
+      np.savetxt(mdmfn,databeats, delimiter='\n', fmt='%.09f')
     mad_beat +=[databeats]
 
   evals_name = ['fMeasure']
@@ -93,6 +97,7 @@ def main():
   print('Aligning motion files with each music...')
   motion_beat = []
   align_idx = []
+  #TODO: Needs to be parallelized (?)
   for i in range(len(music_beat)):
     _rot_quats = motionread(filelist[i], 'htr', 'euler', JOINTS)
     music_beat_frame = np.asarray(music_beat[i]*float(args.fps), dtype=np.int)

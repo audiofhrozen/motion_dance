@@ -46,24 +46,15 @@ class Dancer(chainer.Chain):
 
     def forward(self, state, h1, h):
         act = F.elu
-        #new_state = [None]*len(self.state)
         ec1, eh1 = self.enc_lstm1(state['ec1'], state['eh1'], h)
         ec2, eh2 = self.enc_lstm2(state['ec2'], state['eh2'], eh1)
         ec3, eh3 = self.enc_lstm3(state['ec3'], state['eh3'], eh2)
         h = act(self.fc01(eh3))
-        #new_state[0], new_state[1] = self.enc_lstm1(state[0], state[1], h)
-        #new_state[2], new_state[3] = self.enc_lstm2(state[2], state[3], new_state[1])
-        #new_state[4], new_state[5] = self.enc_lstm3(state[4], state[5], new_state[3])
-        #h = act(self.fc01(new_state[5])) 
         h = F.concat((h1,h))
         dc1, dh1 = self.dec_lstm1(state['dc1'], state['dh1'], h)
         dc2, dh2 = self.dec_lstm2(state['dc2'], state['dh2'], dh1)
         dc3, dh3 = self.dec_lstm3(state['dc3'], state['dh3'], dh2)
         h = act(self.out_signal(dh3))
-        #new_state[6], new_state[7] = self.dec_lstm1(state[6], state[7], h)
-        #new_state[8], new_state[9] = self.dec_lstm2(state[8], state[9], new_state[7])
-        #new_state[10], new_state[11] = self.dec_lstm3(state[10], state[11], new_state[9])
-        #h = act(self.out_signal(new_state[11]))
         new_state = dict()
         for key in state:
             new_state[key] = locals()[key]

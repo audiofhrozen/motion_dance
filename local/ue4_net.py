@@ -1,8 +1,9 @@
 #!/usr/bin/python
 #
-
+import warnings
+warnings.filterwarnings('ignore')
 import signal, argparse, colorama, h5py
-import sys, threading, platform, vlc, time, imp #install python-osc
+import sys, threading, platform, vlc, time, imp 
 
 from time import sleep
 import numpy as np
@@ -11,14 +12,13 @@ from six.moves import queue
 from utillib.audio import single_spectrogram
 import chainer
 from chainer import cuda, serializers, Variable
-#from scipy.io import wavfile 
 import soundfile
 from transforms3d.euler import quat2euler
 from motion_format import render_motion
 from utillib.print_utils import print_info, print_warning, print_error
 
 if sys.version_info[0] < 3:
-  import OSC
+  import OSC #install python-osc
   pyver3 = False
 else:
   from pythonosc import osc_message_builder, udp_client
@@ -45,8 +45,7 @@ def datafeed():
     print('OS not supported')
     return
   data_wav, fs  = soundfile.read(rsmpfile)
-  #iinfo = np.iinfo(data_wav.dtype)
-  data_wav /= np.amax(np.abs(data_wav))  #float(iinfo.max)
+  data_wav /= np.amax(np.abs(data_wav))
   idxs = np.linspace(0, fs, 31, endpoint=True, dtype=np.int)
   rest = [0.0325, 0.0335, 0.0325]
 
@@ -72,8 +71,6 @@ def datafeed():
       sec +=1
     else:
       i +=1
-
-    
   data_w.put('end')
   return
 
@@ -93,12 +90,19 @@ def netdancer():
   intersec_pos = rng_pos[1] - slope_pos * pos_max
 
   net = imp.load_source('Network', args.model) 
-  encoder = getattr(net, args.encoder)
-  model = net.Dancer(args.initOpt, encoder)
-  serializers.load_hdf5(args.pretrained, model)
+  audionet = imp.load_source('Network', './models/audio_nets.py')
+  model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
+  ext = os.path.basename(args.pretrained).split('.')
+  ext = ext[1] if len(ext)>1 else None
+  if ext == 'model':
+    serializers.load_hdf5(args.pretrained, model)
+  else:
+    print(args.pretrained)
+    serializers.load_npz(args.pretrained, model)
   model.to_gpu()
 
-  current_step = np.zeros((1,args.initOpt[2]), dtype=np.float32)
+  #current_step = np.random.randn(1,args.initOpt[2]).astype(np.float32)
+  current_step = np.zeros((1, args.initOpt[2]), dtype=np.float32)
   state = model.state
   start = False
   config ={'rot' : 'quat'}
@@ -131,8 +135,8 @@ def netdancer():
       _, audiodata = inp
       try:
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
-          state, current_step= model.forward(state,  Variable(xp.asarray(current_step)),
-            Variable(xp.asarray(audiodata[None, None, :,:])))
+          state, current_step= model.forward(state, Variable(xp.asarray(current_step)), 
+            model.audiofeat(Variable(xp.asarray(audiodata[None, None, :,:]))))
       except Exception as e:
         print(audiodata.shape)
         raise e

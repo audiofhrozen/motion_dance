@@ -4,6 +4,7 @@ from __future__ import division
 from __future__ import print_function
 import warnings
 warnings.filterwarnings('ignore')
+# h5py has been recently printing a warning message. The filtering is to avoid that message.
 import signal, timeit, json, imp, importlib, argparse
 import sys, os
 import numpy as np
@@ -91,13 +92,13 @@ def main():
   
   DBClass = importlib.import_module('utillib.chainer.dataset_hdf5')
   try:
-    trainset = getattr(DBClass,args.dataset)(args.folder, args.sequence, 'train')
+    trainset = getattr(DBClass,args.dataset)(args.folder, args.sequence, 'train', args.init_step)
   except Exception as e:
     print_warning('Cannot continue with the training, Failing Loading Data... ')
     raise TypeError(e)
 
   try:
-    testset = getattr(DBClass,args.dataset)(args.folder, args.sequence, 'test')
+    testset = getattr(DBClass,args.dataset)(args.folder, args.sequence, 'test', args.init_step)
   except Exception as e:
     print_warning('Cannot find testing files, test stage will be skipped... ')
     testset = None
@@ -145,6 +146,7 @@ if __name__=='__main__':
   parser = argparse.ArgumentParser(description='Training Program based on Chainer Framework')
   parser.add_argument('--dataset', '-d', type=str, help='Dataset File')
   parser.add_argument('--batch', '-b', type=int, help='Minibatch size', default=50)
+  parser.add_argument('--init_step', type=int, help='Initialize sequence', default=0)
   parser.add_argument('--encoder', '-o', type=str, help='Encoder type')
   parser.add_argument('--epoch', '-e', type=int, help='Training epochs', default=1)
   parser.add_argument('--folder', '-f', type=str, help='Dataset Location')
