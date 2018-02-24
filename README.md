@@ -33,7 +33,7 @@ For training and evaluating the following libraries are required:
 - [Beat Tracking Evaluation toolbox](https://github.com/adamstark/Beat-Tracking-Evaluation-Toolbox) or [updated](https://github.com/Fhrozen/Beat-Tracking-Evaluation-Toolbox)
 - [mir_eval](https://github.com/craffel/mir_eval)
 - [transforms3d](https://github.com/matthew-brett/transforms3d)
-- h5py, numpy, soundfile, scipy, scikit-learn, pandas
+- h5py, numpy, soundfile, scipy, scikit-learn, pandas, colorama
 
 For real-time emulation:
 - pyOSC (for python v2)
