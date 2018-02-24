@@ -4,7 +4,7 @@ from __future__ import division
 from __future__ import print_function
 import warnings
 warnings.filterwarnings('ignore')
-import glob, os, h5py, argparse, shutil
+import glob, os, h5py, argparse, shutil, sys
 import numpy as np
 from numpy import linalg as LA
 from utillib.audio import add_noise, single_spectrogram
@@ -30,10 +30,9 @@ def Configuration(args):
           }
   return config
 
-def format_motion_audio(filename, config, snr=None, noise='white', align=0):
+def format_motion_audio(filename, config, slash, snr=None, noise='white', align=0):
   #TODO: Change configs and test differents
-
-  wavefile = filename.replace('MOCAP/HTR', 'AUDIO/WAVE')
+  wavefile = filename.replace('MOCAP{}HTR'.format(slash), 'AUDIO{}WAVE'.format(slash))
   wavefile = wavefile.replace('.htr', '.wav')
   wavefile = wavefile.replace('{}_'.format(config['exp']), '')
   wavefile = wavefile.replace('test_', '')
@@ -44,7 +43,8 @@ def format_motion_audio(filename, config, snr=None, noise='white', align=0):
   position_data = position_data[int(align):,] 
   position_data = position_data * config['slope_pos'] + config['intersec_pos']
   silence_pos = np.ones((config['silence']*config['fps'], position_data.shape[1]), dtype=np.float32) * position_data[0,:]
-  position_data = np.concatenate((silence_pos, position_data, silence_pos), axis=0)            
+  position_data = np.concatenate((silence_pos, position_data, silence_pos), axis=0)         
+  print(wavefile)   
   data_wav, _ = soundfile.read(wavefile)
   data_wav /= np.amax(np.abs(data_wav)) 
   silence_wav = np.random.rand(config['silence']*config['freq']).astype(np.float32)*(10**-5)     
@@ -265,7 +265,10 @@ def extract_beats(musicbeat, motionbeat, align=0):
 def motionread(filename, extension, rottype='euler', joints=None, translation=False):
   if extension == 'htr':
     with open(filename, 'rb') as f:
-      datafile = f.read().split('\r\n')
+      if sys.version_info[0] < 3:
+        datafile=f.read().split('\r\n')
+      else:
+        datafile = f.read().decode('utf-8').split('\r\n')
       frames = int(datafile[5].split(' ')[1])
     if rottype == 'euler':
       axis = 3

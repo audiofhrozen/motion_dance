@@ -4,7 +4,7 @@ from __future__ import division
 from __future__ import print_function
 import warnings
 warnings.filterwarnings('ignore')
-import glob, os, h5py, argparse, shutil, soundfile
+import glob, os, h5py, argparse, shutil, soundfile, platform, colorama
 import numpy as np
 from motion_format import format_motion_audio, format_audio_noise, format_motion_gan
 from motion_format import motionread, JOINTS, Configuration
@@ -62,7 +62,7 @@ def prepare_motion():
   config['slope_wav'] = (config['rng_wav'][1]-config['rng_wav'][0]) / (audio_max-audio_min)
   config['intersec_wav'] = config['rng_wav'][1] - config['slope_wav'] * audio_max
 
-  prefix = '{}/train_motion_'.format(config['out_folder'])
+  prefix = '{}{}train_motion_'.format(config['out_folder'], slash)
   try:
     for filename in glob.glob('{}*'.format(prefix)):
       os.remove(filename)
@@ -71,7 +71,7 @@ def prepare_motion():
 
   for j in range(len(list_htr_files)):
     for i in range(len(snr_lst)):
-      audiodata, current_step = format_motion_audio(list_htr_files[j], config, snr=snr_lst[i], align=align[j])
+      audiodata, current_step = format_motion_audio(list_htr_files[j], config, slash, snr=snr_lst[i], align=align[j])
       h5file = '{}f{:03d}.h5'.format(prefix, j*len(snr_lst)+i)
       with h5py.File(h5file, 'a') as f:
         ds = f.create_dataset('input', data=audiodata)
@@ -179,9 +179,16 @@ if __name__ == '__main__':
   parser.add_argument('--fps', '-p', type=int, help='Motion file FPS', default=0)
   parser.add_argument('--freq', '-f', type=int, help='Audio frequency sampling', default=16000)
   args=parser.parse_args()
-
+  colorama.init()
   config = Configuration(args)
   snr_lst = [None] + args.snr
+  platform = platform.system()
+  if platform == 'Windows':
+    slash='\\'
+  elif platform == 'Linux':
+    slash='/'
+  else:
+    raise OSError('OS not supported')
   config['file_pos_minmax'] = '{}/minmax/pos_minmax.h5'.format(args.save)
   config['out_folder'] = '{}/data'.format(args.save) 
   main()

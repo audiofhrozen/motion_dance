@@ -3,7 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os, sys, argparse, glob
+import os, sys, argparse, glob, platform
 from scipy import signal
 import numpy as np
 from madmom.features import beats
@@ -21,7 +21,7 @@ except Exception as e:
 from matplotlib import pyplot as plt
 
 def procesmadmomRNN(proc, filename):
-  wav_fn = filename.replace('MOCAP/HTR', 'AUDIO/WAVE')
+  wav_fn = filename.replace('MOCAP{}HTR'.format(slash), 'AUDIO{}WAVE'.format(slash))
   wav_fn = wav_fn.replace('{}_'.format(args.exp), '')
   wav_fn = wav_fn.replace('test_', '')
   wav_fn = wav_fn.replace('.htr', '.wav')
@@ -48,11 +48,11 @@ def plot_vals(labels, means, stds, comp, title, idx):
   ax.set_xticks(ind + width*i / 2)
   ax.set_xticklabels(labels) #rotation=40
   ax.legend(rects, comp)
-  fig.savefig('{}/init_bpm_results_{}.png'.format(args.output, idx))
+  fig.savefig('{}{}init_bpm_results_{}.png'.format(args.output, slash,idx))
   return
 
 def readfromfile(filename, folder):
-  filename = filename.replace('MOCAP/HTR', folder) 
+  filename = filename.replace('MOCAP{}HTR'.format(slash), folder) 
   filename = filename.replace('{}_'.format(args.exp), '')
   filename = filename.replace('test_', '')
   filename = filename.replace('.htr', '.txt')
@@ -74,19 +74,19 @@ def main():
   mad_beat = []
   for fn in filelist:
     print(fn)
-    databeats = readfromfile(fn,'Annotations/corrected')
+    databeats = readfromfile(fn,'Annotations{}corrected'.format(slash))
     if databeats is None:
       raise ValueError('No music beat annotations found for exp {}, prepare first the beat annotations.'.format(args.exp))
     music_beat += [databeats]
 
-    databeats = readfromfile(fn,'Annotations/Marsyas_ibt')
+    databeats = readfromfile(fn,'Annotations{}Marsyas_ibt'.format(slash))
     if not databeats is None:
       marsyas_beat += [databeats]
 
-    databeats = readfromfile(fn,'Annotations/madmom')
+    databeats = readfromfile(fn,'Annotations{}madmom'.format(slash))
     if databeats is None:
       databeats = procesmadmomRNN(proc, fn)
-      mdmfn = fn.replace('MOCAP/HTR', 'Annotations/madmom') 
+      mdmfn = fn.replace('MOCAP{}HTR'.format(slash), 'Annotations{}madmom'.format(slash)) 
       mdmfn = mdmfn.replace('{}_'.format(args.exp), '')
       mdmfn = mdmfn.replace('.htr', '.txt')
       np.savetxt(mdmfn,databeats, delimiter='\n', fmt='%.09f')
@@ -124,7 +124,7 @@ def main():
                 R_mar['scores_mean']['fMeasure'],
                 R_mot['scores_mean']['fMeasure']]}
   df = pd.DataFrame(init_results, columns = ['comparison', 'fscore'])
-  df.to_csv('{}/init_results.csv'.format(args.output), encoding='utf-8')
+  df.to_csv('{}{}init_results.csv'.format(args.output, slash), encoding='utf-8')
 
   results =[R_mad, R_mot, R_mar]
   
@@ -140,7 +140,7 @@ def main():
   
   align_txt = [ '{}\t{}'.format(filelist[i], align_idx[i]) for i in range(len(music_beat))]
   align_txt = '\n'.join(align_txt)
-  with open('{}/{}_files_align.txt'.format(args.output, args.stage), 'w+') as f:
+  with open('{}{}{}_files_align.txt'.format(args.output, slash, args.stage), 'w+') as f:
     f.write(align_txt)
   print('\nDone')
 
@@ -154,5 +154,12 @@ if __name__=='__main__':
   parser.add_argument('--fps', '-f', type=int, help='Motion file FPS', default=0)
   parser.add_argument('--stage', '-s', type=str, help='Train or Test')
   args = parser.parse_args()
+  platform = platform.system()
+  if platform == 'Windows':
+    slash='\\'
+  elif platform == 'Linux':
+    slash='/'
+  else:
+    raise OSError('OS not supported')
   main()
 

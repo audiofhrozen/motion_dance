@@ -5,7 +5,7 @@ from __future__ import print_function
 import warnings
 warnings.filterwarnings('ignore')
 # h5py has been recently printing a warning message. The filtering is to avoid that message.
-import signal, timeit, json, imp, importlib, argparse
+import signal, timeit, json, imp, importlib, argparse, colorama, platform
 import sys, os
 import numpy as np
 from sys import stdout 
@@ -158,7 +158,14 @@ if __name__=='__main__':
   parser.add_argument('--workers', '-w', type=int, help='Number of worker processes', default=1)
   parser.add_argument('--sequence', '-q', type=int, help='Training sequence', default=1)
   args = parser.parse_args()
-
+  colorama.init()
+  platform = platform.system()
+  if platform == 'Windows':
+    slash='\\'
+  elif platform == 'Linux':
+    slash='/'
+  else:
+    raise OSError('OS not supported')
   v = chainer.__version__
   print_info('============= Training Program based on Chainer v{} ============'.format(v))
   main()

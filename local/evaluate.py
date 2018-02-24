@@ -5,7 +5,7 @@ from __future__ import print_function
 
 import warnings
 warnings.filterwarnings('ignore')
-import glob, os, h5py, imp, six, argparse, ConfigParser, timeit
+import glob, os, h5py, imp, six, argparse, timeit, platform, colorama
 from time import localtime, strftime
 import numpy as np
 import chainer
@@ -156,7 +156,7 @@ def main():
         os.system('sox {} -c 1 -r {} {}'.format(noise_mp3, args.freq, noise))
     for snr in list_snr:
       for j in range(len(fileslist)):
-        audio, true_motion = format_motion_audio(fileslist[j], config, snr, noise, align[j])
+        audio, true_motion = format_motion_audio(fileslist[j], config, slash, snr, noise, align[j])
         feats = None
         predicted_motion = np.zeros((true_motion.shape[0], true_motion.shape[1]), dtype=np.float32)
         feats = np.zeros((true_motion.shape[0], args.initOpt[1]), dtype=np.float32)
@@ -187,7 +187,7 @@ def main():
         rst_snr += [snr]
         rst_true += [true_motion]
         rst_predict += [predicted_motion]
-        mbfile = fileslist[j].replace('MOCAP/HTR', 'Annotations/corrected')
+        mbfile = fileslist[j].replace('MOCAP{}HTR'.format(slash), 'Annotations{}corrected'.format(slash))
         mbfile = mbfile.replace('{}_'.format(args.exp), '')
         mbfile = mbfile.replace('.htr', '.txt')
         mbfile = mbfile.replace('test_', '')
@@ -224,8 +224,18 @@ if __name__ == '__main__':
   parser.add_argument('--wlen', '-w', type=int, help='STFT Window size', default=0)
   args = parser.parse_args()
   config = Configuration(args)
+  colorama.init()
+  platform = platform.system()
+  if platform == 'Windows':
+    slash='\\'
+  elif platform == 'Linux':
+    slash='/'
+  else:
+    raise OSError('OS not supported')  
   DATA_FOLDER=os.environ['DATA_EXTRACT']
-  list_noises = ['Clean', 'white', '{}/AUDIO/WAVE/NOISE/claps.wav'.format(DATA_FOLDER), '{}/AUDIO/WAVE/NOISE/crowd.wav'.format(DATA_FOLDER)]
+  list_noises = ['Clean', 'white', \
+      '{0}{1}AUDIO{1}WAVE{1}NOISE{1}claps.wav'.format(DATA_FOLDER, slash), \
+      '{0}{1}AUDIO{1}WAVE{1}NOISE{1}crowd.wav'.format(DATA_FOLDER, slash)]
   snr_lst = args.snr
   chainer.cuda.get_device_from_id(args.gpu).use()
   xp = cuda.cupy
