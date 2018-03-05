@@ -19,8 +19,8 @@ display_log=1000
 gpu=0
 workers=4
 sequence=150
-
-
+init_step=0
+feats="CNN"
 while test $# -gt 0
 do
     case "$1" in
@@ -58,8 +58,8 @@ hop=80
 frqsmp=16000
 silence=10
 scale=100.0
-featextract=CNNFeat # RESFeat
-init_step=0
+featextract="$feats"Feat 
+
 
 exp_name="$exp"_"$net"_"$rot"
 LSTM_units=500
@@ -76,7 +76,7 @@ echo "============================================================"
 echo "                        DeepDancer"
 echo "============================================================"
 
-exp_name="$exp"_"$net"_"$rot"_initstep_"$init_step"
+exp_name="$exp"_"$net"_"$rot"_"$feats"_initstep_"$init_step"
 exp_folder=./exp/$exp_name
 exp_data=./exp/data/"$exp"_"$rot"
 
@@ -97,14 +97,14 @@ if [ $stage -le 0 ]; then
   echo "----- Preparing test annotations..."
   local/annot_eval.py -l $tst_lst -e $exp -o $exp_data/annots -m $motion_align -a $frame_align -f $fps -s "test" || exit 1
 fi
-
+#exit 0
 echo "----- End-to-End stage"
 
 if [ $stage -le 1 ]; then 
   echo "----- Preparing training data for motion ..."
   mkdir -p $exp_data/data $exp_data/minmax
   local/data_preproc.py --type motion --exp $exp --list $exp_data/annots/train_files_align.txt \
-                        --save $exp_data --rot $rot --snr 0 --silence $silence --fps $fps\
+                        --save $exp_data --rot $rot --snr 5 --silence $silence --fps $fps\
                         --hop $hop --wlen $wlen --scale $scale || exit 1
   #TODO: Add preparation for testing/validation during training (Need Larger dataset or to split in parts the whole sequence)
 fi
@@ -123,11 +123,11 @@ tst_lst=$exp_data/annots/test_files_align.txt
 
 if [ $stage -le 3 ]; then
   echo "Evaluating Network"
-  mkdir -p $exp_folder/evaluation $exp_folder/results
+  mkdir -p $exp_folder/evaluation $exp_folder/results $exp_folder/untrained $exp_folder/images
   local/evaluate.py --folder $exp_folder --list $tst_lst --exp $exp --rot $rot --gpu $gpu \
                     --network $network --initOpt $LSTM_units $CNN_outs $Net_out \
                     --fps $fps --scale $scale --model $exp_folder/trained/endtoend/trained.model \
-                    --snr 20 --freq $frqsmp --hop $hop --wlen $wlen --encoder $featextract \
+                    --snr 20 10 0 --freq $frqsmp --hop $hop --wlen $wlen --encoder $featextract \
                     --stage "end2end" --alignframe $frame_align || exit 1
 fi
 

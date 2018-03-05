@@ -6,17 +6,24 @@ import warnings
 warnings.filterwarnings('ignore')
 import glob, os, h5py, argparse, shutil, sys
 import numpy as np
-from numpy import linalg as LA
-from utillib.audio import add_noise, single_spectrogram
-from transforms3d.euler import euler2quat, quat2euler
-from utillib.maths import angle_between, deg2rad, rad2deg
 import soundfile 
+from numpy import linalg as LA
+from transforms3d.euler import euler2quat, quat2euler
+from utillib.audio import add_noise, single_spectrogram
+from utillib.maths import angle_between
+try:
+  disp=os.environ['DISPLAY']
+except Exception as e:
+  import matplotlib as mpl
+  mpl.use('Agg')
+  pass
+from matplotlib import pyplot as plt
 
 JOINTS = ['pelvis', 'head', 'neck_01', 'spine_01', 'spine_02', 'upperarm_l', 'upperarm_r', 'lowerarm_l', 
         'lowerarm_r', 'thigh_l', 'thigh_r', 'calf_l', 'calf_r', 'foot_l', 'foot_r', 'clavicle_l', 'clavicle_r']
 
 def Configuration(args):
-  indexes = np.linspace(0,args.freq, num=31, dtype=np.int)
+  indexes = np.linspace(0,args.freq, num=args.fps+1, dtype=np.int)
   frame_lenght = 0
   for fps in range(args.fps):
     frame_lenght = np.amax((frame_lenght, indexes[fps+1] - indexes[fps]))
@@ -44,7 +51,6 @@ def format_motion_audio(filename, config, slash, snr=None, noise='white', align=
   position_data = position_data * config['slope_pos'] + config['intersec_pos']
   silence_pos = np.ones((config['silence']*config['fps'], position_data.shape[1]), dtype=np.float32) * position_data[0,:]
   position_data = np.concatenate((silence_pos, position_data, silence_pos), axis=0)         
-  print(wavefile)   
   data_wav, _ = soundfile.read(wavefile)
   data_wav /= np.amax(np.abs(data_wav)) 
   silence_wav = np.random.rand(config['silence']*config['freq']).astype(np.float32)*(10**-5)     
@@ -64,80 +70,6 @@ def format_motion_audio(filename, config, slash, snr=None, noise='white', align=
     audiodata[frame, 0] = np.swapaxes(stft_data, 0,1)
 
   return audiodata, position_data
-
-def format_motion_gan(filename, config, snr=None, noise='white', align=0):
-  wavefile = filename.replace('MOCAP/HTR', 'AUDIO/WAVE')
-  wavefile = wavefile.replace('.htr', '.wav')
-  wavefile = wavefile.replace('{}_'.format(config['exp']), '')
-  wavefile = wavefile.replace('test_', '')
-  position_data = motionread(filename, 'htr', config['rot'] , JOINTS, True)
-  position_data[:,0:3] /= config['scale'] # Scaled Position Translation to meters
-  init_trans = np.mean(position_data[0:31,0:3], axis=0)
-  position_data[:,0:3] -= init_trans  
-  position_data = position_data[int(align):,] 
-  position_data = position_data * config['slope_pos'] + config['intersec_pos']
-  silence_pos = np.ones((config['silence']*config['fps'], position_data.shape[1]), dtype=np.float32) * position_data[0,:]
-  position_data = np.concatenate((silence_pos, position_data, silence_pos), axis=0)            
-  _, data_wav = wavfile.read(wavefile)
-  silence_wav = np.random.rand(config['silence']*config['freq']).astype(np.float32)*(10**-5)     
-  niinfo = np.iinfo(data_wav.dtype)
-  data_wav = data_wav.astype(np.float32) / float(niinfo.max)
-
-  data_wav = np.concatenate((silence_wav,data_wav,silence_wav))
-  clean_wav = add_noise(data_wav, 'Clean', None)
-  noisy_wav = add_noise(data_wav, noise, snr)
-
-  idxs = np.linspace(0, config['freq'], config['fps']+1, endpoint=True, dtype=np.int)
-
-  for frame in range(position_data.shape[0]):
-    index_1 = idxs[frame%(config['fps'])]+int(frame/config['fps'])*config['freq']
-    index_2 = idxs[frame%(config['fps'])+1]+int(frame/config['fps'])*config['freq']
-    tmp = np.zeros((index_2-index_1,), dtype=np.float32)
-    tmp2 = np.zeros((index_2-index_1,), dtype=np.float32)
-    truelen = data_wav[index_1: index_2].shape[0] # This protect in case audio lenght is shorter than motion
-    tmp[0:truelen] = noisy_wav[index_1: index_2]
-    tmp2[0:truelen] = clean_wav[index_1: index_2]
-    stft_noisy = single_spectrogram(tmp, config['freq'], config['wlen'], config['hop'])
-    stft_clean = single_spectrogram(tmp2, config['freq'], config['wlen'], config['hop']) 
-    stft_noisy =  stft_noisy * config['slope_wav'] + config['intersec_wav']
-    stft_clean =  stft_clean * config['slope_wav'] + config['intersec_wav']
-    if frame ==0:
-      noisydata = np.zeros((position_data.shape[0], 1, stft_clean.shape[1], stft_clean.shape[0]), dtype = np.float32) 
-      cleandata = np.zeros((position_data.shape[0], 1, stft_clean.shape[1], stft_clean.shape[0]), dtype = np.float32)
-    noisydata[frame, 0] = np.swapaxes(stft_noisy, 0,1)
-    cleandata[frame, 0] = np.swapaxes(stft_clean, 0,1)
-  return cleandata, noisydata, position_data
-
-def format_audio_noise(filename, config, snr_list, noise='white'):
-  wavefile = filename.replace('MOCAP/HTR', 'AUDIO/WAVE')
-  wavefile = wavefile.replace('.htr', '.wav')
-  wavefile = wavefile.replace('{}_'.format(config['exp']), '')
-  wavefile = wavefile.replace('test_', '')
-    
-  data_wav, _ = soundfile.read(wavefile)
-  data_wav /= np.amax(np.abs(data_wav))
-  silence_wav = np.random.rand(config['silence']*config['freq']).astype(np.float32)*(10**-5)     
-  _data_wav = np.concatenate((silence_wav,data_wav,silence_wav))
-
-  position_data = motionread(filename, 'htr', config['rot'], JOINTS)
-  silence_pos = np.ones((config['silence']*config['fps'], position_data.shape[1]), dtype=np.float32)
-  position_data = np.concatenate((silence_pos, position_data, silence_pos), axis=0)      
-  data = dict()
-  for snr in snr_list: 
-    data_wav = add_noise(_data_wav, noise, snr)
-    for frame in range(position_data.shape[0]):
-      index_1 = int(int(frame/config['fps']) * config['freq'] + config['indexes'][int(frame%config['fps'])])
-      index_2 = int(int(frame/config['fps']) * config['freq'] + config['indexes'][int(frame%config['fps'])+1])
-      _tmp = np.zeros((config['frame_lenght'],), dtype=np.float32)
-      len2 = data_wav[index_1: index_2].shape[0] 
-      _tmp[0:len2] = data_wav[index_1: index_2]
-      stft_data = single_spectrogram(_tmp, config['freq'], config['wlen'], config['hop']) 
-      stft_data =  stft_data * config['slope_wav'] + config['intersec_wav']
-      if frame ==0:
-        audiodata = np.zeros((position_data.shape[0], 1, stft_data.shape[1], stft_data.shape[0]), dtype = np.float32) 
-      audiodata[frame, 0] = np.swapaxes(stft_data, 0,1)
-    data['snr_{}'.format(snr)] =  audiodata
-  return data
 
 def peak_detect(signal):
     # signal in 1D
@@ -241,7 +173,7 @@ def calculate_rom(rot_quats, align=0, fps=30):
       if len(maxs)>1:
           max_id = np.where(segment == np.amax(segment))[0][0]
           for j in range(xi,xj):
-              if not(j-xi == max_id):
+              if not(j-xi == max_id) and j<vel_drop.shape[0]:
                   vel_drop[j] = -0.1 
   drops = np.asarray(np.where(vel_drop > 0)[0])
 
@@ -285,7 +217,7 @@ def motionread(filename, extension, rottype='euler', joints=None, translation=Fa
         if translation and (j==0):
             translations = array_data[:,1:4] 
         euler_rot = array_data[:,4:7]
-        euler_rot = deg2rad(euler_rot) 
+        euler_rot = np.radians(euler_rot) # deg2rad
         for i in range(frames):         
           eX, eY, eZ = euler_rot[i]
           current_rotations = euler2quat(eX, eY, eZ)
@@ -310,10 +242,31 @@ def render_motion(motion, config, Translation=True, scale=1):
       axis_motion[:,i*3:(i+1)*3] = scale*motion[:,0:3] 
     for j in range(num_frames):
       if config['rot']=='euler':
-        axis_motion[j,i*3+dims:(i+1)*3+dims] = rad2deg(motion[j,i*3+dims:(i+1)*3+dims]) 
+        axis_motion[j,i*3+dims:(i+1)*3+dims] = np.degrees(motion[j,i*3+dims:(i+1)*3+dims]) #rad2deg
       elif config['rot']=='quat':
-        axis_motion[j,i*3+dims:(i+1)*3+dims] = rad2deg(np.asarray([quat2euler(motion[j,i*4+dims:(i+1)*4+dims])])) 
+        axis_motion[j,i*3+dims:(i+1)*3+dims] = np.degrees(np.asarray([quat2euler(motion[j,i*4+dims:(i+1)*4+dims])])) 
       else:
         print_error('Incorrect type of rotation')
         raise TypeError()
   return axis_motion
+
+def process_skeleton_htr(filename):
+  class joint:
+    def __init__(self, name):
+      self.name=name
+  frames = int(datafile[5].split(' ')[1])
+
+  with open(filename, 'rb') as f:
+    datafile=f.read()
+    if sys.version_info[0] > 2:
+      datafile = datafile.decode('utf-8')
+  datafile = datafile.split('\r\n')
+  jnt_idx = datafile.index('[SegmentNames&Hierarchy]')
+  while not ('root' in datafile[jnt_idx]):
+    jnt_idx +=1
+  jnt_idx +=1
+  while not ('[' in datafile[jnt_idx]):
+    jnt_idx +=1
+  return
+
+

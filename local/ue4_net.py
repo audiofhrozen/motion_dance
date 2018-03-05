@@ -2,7 +2,7 @@
 #
 import warnings
 warnings.filterwarnings('ignore')
-import signal, argparse, colorama, h5py
+import signal, argparse, colorama, h5py, os
 import sys, threading, platform, time, imp 
 from utillib.print_utils import print_info, print_warning, print_error
 from time import sleep
@@ -20,7 +20,7 @@ try:
   import vlc
   vlclib=True
 except Exception as e:
-  print_warning('vlc library was not found')
+  print_warning('vlc library not found')
   vlclib=False
   pass
 
@@ -39,7 +39,6 @@ list_address = ['PosBody', 'RotPelvis', 'RotHead', 'RotNeck','RotSpine1','RotSpi
 def datafeed():
   data_w.put('start')
   print('Converting audio data')
-  
   loc = sec = i = 0
   rsmpfile = 'resampled.wav'
   if platform == 'Windows':
@@ -61,6 +60,8 @@ def datafeed():
   data_w.put('start')
   if vlclib:
     vlcplayer.play()
+  if enable_record:
+    ws.call(requests.StartRecording())
   while loc < data_wav.shape[0]:
     t = time.time()
     prv = idxs[i]+fs*sec
@@ -79,15 +80,16 @@ def datafeed():
       sec +=1
     else:
       i +=1
+  os.remove(rsmpfile)
   data_w.put('end')
   return
 
 def netdancer():
   if pyver3:
-    c = udp_client.SimpleUDPClient(_SERVER_IP, args.port)
+    c = udp_client.SimpleUDPClient(args.host, args.port_osc)
   else:
     c = OSC.OSCClient()
-    c.connect((_SERVER_IP, args.port))  
+    c.connect((args.host, args.port_osc))  
 
   with h5py.File(args.minmax, 'r') as f:
     pos_min = f['minmax'][0,:][None,:] 
@@ -102,20 +104,24 @@ def netdancer():
   model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
   ext = os.path.basename(args.pretrained).split('.')
   ext = ext[1] if len(ext)>1 else None
-  if ext == 'model':
-    serializers.load_hdf5(args.pretrained, model)
-  else:
-    print(args.pretrained)
-    serializers.load_npz(args.pretrained, model)
-  model.to_gpu()
+  try:
+    if ext == 'model':
+      serializers.load_hdf5(args.pretrained, model)
+    else:
+      print(args.pretrained)
+      serializers.load_npz(args.pretrained, model)
+  except Exception as e:
+    raise e
 
+  model.to_gpu()
   #current_step = np.random.randn(1,args.initOpt[2]).astype(np.float32)
   current_step = np.zeros((1, args.initOpt[2]), dtype=np.float32)
   state = model.state
   start = False
   config ={'rot' : 'quat'}
-  
   frame = 0
+  max_frames = 8000
+  feats=np.zeros((max_frames,args.initOpt[1]))
   while True:
     while data_w.empty():
       sleep(0.01)
@@ -126,16 +132,21 @@ def netdancer():
         break
       elif inp=='start':
         start = True
-        if pyver3:
-          pass
-        else:
+        if not pyver3:
           oscmsg = OSC.OSCMessage()
           oscmsg.setAddress('WidgetTV')
           oscmsg.append(youtube_link.format(videolink))
           c.send(oscmsg)
         continue
       elif inp=='end':
+        if enable_record:
+          ws.call(requests.StopRecording())
+          ws.disconnect()
         start=False
+        fn=os.path.basename(args.track).split('.')[0]
+        fn=args.pretrained.replace('trained/endtoend/trained.model', 'untrained/{}_feats.h5'.format(fn))
+        with h5py.File(fn, 'w') as f:
+          ds=f.create_dataset('feats',data=feats[0:frame])
         break
 
     if start:
@@ -143,13 +154,16 @@ def netdancer():
       _, audiodata = inp
       try:
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
-          state, current_step= model.forward(state, Variable(xp.asarray(current_step)), 
-            model.audiofeat(Variable(xp.asarray(audiodata[None, None, :,:]))))
+          _h, state, current_step= model.forward(state, Variable(xp.asarray(current_step)), 
+            model.audiofeat(Variable(xp.asarray(audiodata[None, None, :,:]))), True)
       except Exception as e:
         print(audiodata.shape)
         raise e
       
       current_step = chainer.cuda.to_cpu(current_step.data)
+      if frame < max_frames:
+        feats[frame] = chainer.cuda.to_cpu(_h.data)
+
       predicted_motion = (current_step -intersec_pos)/ slope_pos
       rdmt = render_motion(predicted_motion, config, scale=args.height)
       for i in range(len(list_address)):
@@ -181,6 +195,17 @@ def netdancer():
   return
 
 def signal_handler(signal, frame):
+  rsmpfile = 'resampled.wav'
+  if enable_record:
+    try:
+      ws.call(requests.StopRecording())
+      ws.disconnect()
+    except Exception as e:
+      pass
+  try:
+    os.remove(rsmpfile)
+  except OSError:
+    pass
   if vlclib:
     vlcplayer.stop()
   print('\nBye')
@@ -202,11 +227,15 @@ if __name__ == '__main__':
   parser.add_argument('--pretrained', '-t', type=str, help='Pretrained network')
   parser.add_argument('--encoder', '-e', type=str, help='Audio encoder')
   parser.add_argument('--minmax', '-x', type=str, help='Minmax File')
-  parser.add_argument('--port', '-p', type=int, help='OSC ip port', default=6060)
+  parser.add_argument('--port_osc', type=int, help='OSC ip port', default=6060)
+  parser.add_argument('--port_osb', type=int, help='OSB ip port', default=4444)
   parser.add_argument('--gpu', '-g', type=int, help='GPU id', default=0)
   parser.add_argument('--initOpt', '-i',  nargs='+', type=int, help='Model initial options')
   parser.add_argument('--height', '-l', type=float, help='Height of the dancer', default=100.0)
   parser.add_argument('--character', '-c', type=str, help='UE Character name definition')
+  parser.add_argument('--record', '-r', type=int, help='Record Screen', default=0)
+  parser.add_argument('--host', type=str, help='UE Server ip')
+
   args = parser.parse_args()
 
   signal.signal(signal.SIGINT, signal_handler) 
@@ -228,8 +257,16 @@ if __name__ == '__main__':
       gpu_name = ""
   else:
     raise OSError('OS not supported')
+  
+  enable_record=False
+
+  if args.record > 0:
+    from obswebsocket import obsws, requests
+    enable_record=True
+    ws = obsws(args.host, args.port_osb, None)
+    ws.connect()
   print('Using gpu id:{} - {}'.format(args.gpu, gpu_name))
-  _SERVER_IP = '192.168.170.110'
+  
   youtube_link = 'https://www.youtube.com/tv#/watch?v={}'
   rng_pos = [-0.9, 0.9]
   rng = [-0.9, 0.9]

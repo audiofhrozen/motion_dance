@@ -11,12 +11,16 @@ import numpy as np
 import chainer
 from chainer import cuda, serializers, Variable
 from utillib.print_utils import print_info
-from utillib.maths import rad2deg, deg2rad
 from motion_format import format_motion_audio, calculate_rom, extract_beats, render_motion, Configuration
 from sklearn.metrics import mean_squared_error
 import utillib.BTET.beat_evaluation_toolbox as be
 from mir_eval.separation import bss_eval_sources
 import pandas
+
+from sklearn.svm.classes import SVC
+from sklearn import (manifold, datasets, decomposition, ensemble,
+                     discriminant_analysis, random_projection, metrics)
+from sklearn.cluster import KMeans
 
 try:
   disp=os.environ['DISPLAY']
@@ -25,12 +29,15 @@ except Exception as e:
   mpl.use('Agg')
   pass
 from matplotlib import pyplot as plt
+import matplotlib.animation as animation
 
-def eval_error_generations(TIME, NOISE, SNR, TRUE, PREDICT):
+def eval_error_generations(TIME, NOISE, SNR, TRUE, PREDICT, FILE):
   print_info('Evaluating next step')
   smape = ''
   str_smape = '{} SNR:{} smape:{:.06f}\n'
   for i in range(len(TIME)):
+    fn = os.path.basename(FILE[i])
+    fn = fn.split('.')[0]
     sm = np.mean(np.abs(PREDICT[i]-TRUE[i])/(np.abs(TRUE[i])+np.abs(PREDICT[i]))) * 100.0
     smape += str_smape.format(NOISE[i], SNR[i], sm)
     if os.path.exists(NOISE[i]):
@@ -38,7 +45,7 @@ def eval_error_generations(TIME, NOISE, SNR, TRUE, PREDICT):
       noise_name = noise_name.split('.')[0]
     else:
       noise_name = NOISE[i]
-    with h5py.File('{}/evaluation/{}_{}_{}_motion.h5'.format(args.folder, args.stage, noise_name, SNR[i]), 'w') as f:
+    with h5py.File('{}/evaluation/{}_{}_{}_{}_motion.h5'.format(args.folder, args.stage,fn, noise_name, SNR[i]), 'w') as f:
       ds = f.create_dataset('true', data=TRUE[i])
       ds = f.create_dataset('predicted', data=PREDICT[i])
   with open('{}/results/{}_smape.txt'.format(args.folder, args.stage), 'w') as f:
@@ -63,17 +70,13 @@ def eval_rom(TIME, NOISE, SNR, TRUE, PREDICT, BEATS, FILE):
       motion_beat = motion_beat_frame.astype(np.float)/float(args.fps)
       fs, p, r, a = be.fMeasure(BEATS[i] , motion_beat)
       np.savetxt('{}/evaluation/{}_{}_true_{}_{}.txt'.format(args.folder, args.stage, fn, noise_name, SNR[i]), motion_beat, fmt='%.09f')
-      rom += text.format(fn, 'true', NOISE[i], SNR[i], fs, p, r, a)
+      rom += text.format(fn, 'true', noise_name, SNR[i], fs, p, r, a)
     motion_beat_frame = calculate_rom(PREDICT[i][:,3:], args.alignframe)
-    #plt.vlines(motion_beat_frame, [0],[0.2],colors='r', label='motion')
-    #plt.vlines(BEATS[i]*args.fps, [0.2],[0.4],colors='b', label='music')
-    #plt.legend()
-    #plt.show()
     motion_beat_frame = extract_beats(BEATS[i]*args.fps, motion_beat_frame, args.alignframe)
     motion_beat = motion_beat_frame.astype(np.float)/float(args.fps)
     fs, p, r, a = be.fMeasure(BEATS[i] , motion_beat)
-    np.savetxt('{}/evaluation/{}_{}_predicted_{}_{}.txt'.format(args.folder, args.stage, fn, noise_name, SNR[i]), motion_beat, fmt='%.09f')
-    rom += text.format(fn, 'predicted', NOISE[i], SNR[i], fs, p, r, a)
+    np.savetxt('{}/evaluation/{}_{}_predicted_{}_{}dB.txt'.format(args.folder, args.stage, fn, noise_name, SNR[i]), motion_beat, fmt='%.09f')
+    rom += text.format(fn, 'predicted', noise_name, SNR[i], fs, p, r, a)
   with open('{}/results/{}_rom.txt'.format(args.folder,args.stage), 'w') as f:
     f.write(rom)
   return
@@ -81,20 +84,26 @@ def eval_rom(TIME, NOISE, SNR, TRUE, PREDICT, BEATS, FILE):
 def eval_bss(NOISE, SNR, FEATS, FILE):
   print_info('Evaluating Features parameters')
 
-  j = [ x for x in range(len(NOISE)) if NOISE[x] == 'Clean'][0]
-  reference_source = FEATS[j].reshape(1,-1)
-  text = '{}\t noise:{}\t snr:{}\t sdr:{}\t sir:{}\t sar:{}\t\n'
-  bss= ''
-  for i in range(len(FEATS)):
-    #print(FILE[i])
-    estimated_source = FEATS[i].reshape(1,-1)
-    sdr, sir, sar, _ = bss_eval_sources(reference_source, estimated_source)
-    fn = os.path.basename(FILE[i])
+  filelist = [ x for x in range(len(NOISE)) if NOISE[x] == 'Clean']
+
+  for j in filelist:
+    reference_source = FEATS[j].reshape(1,-1)
+    fn = os.path.basename(FILE[j])
     fn = fn.split('.')[0]
-    sir = [0] if sir[0] == np.inf else sir
-    bss += text.format(fn, NOISE[i], SNR[i], sdr[0], sir[0], sar[0])
-  with open('{}/results/{}_bss.txt'.format(args.folder, args.stage), 'w') as f:
-    f.write(bss)
+    with h5py.File('{}/evaluation/{}_{}_Clean_feats.h5'.format(args.folder, args.stage, fn), 'w') as f:
+        ds = f.create_dataset('feats', data=FEATS[j])
+    text = '{}\t noise:{}\t snr:{}\t sdr:{}\t sir:{}\t sar:{}\t\n'
+    bss= ''
+    for i in range(len(FEATS)):
+      if FILE[i]==FILE[j]:
+        estimated_source = FEATS[i].reshape(1,-1)
+        sdr, sir, sar, _ = bss_eval_sources(reference_source, estimated_source)
+        fn = os.path.basename(FILE[i])
+        fn = fn.split('.')[0]
+        sir = [0] if sir[0] == np.inf else sir
+        bss += text.format(fn, NOISE[i], SNR[i], sdr[0], sir[0], sar[0])
+    with open('{}/results/{}_{}_bss.txt'.format(args.folder, args.stage, fn), 'w') as f:
+      f.write(bss)
   return
 
 def main():
@@ -111,6 +120,7 @@ def main():
 
   print_info('Evaluation training...')   
   print_info('Loading model definition from {}'.format(args.network))
+  print_info('Using gpu {}'.format(args.gpu))
 
   net = imp.load_source('Network', args.network) 
   audionet = imp.load_source('Network', './models/audio_nets.py')
@@ -156,47 +166,47 @@ def main():
         os.system('sox {} -c 1 -r {} {}'.format(noise_mp3, args.freq, noise))
     for snr in list_snr:
       for j in range(len(fileslist)):
+        mbfile = fileslist[j].replace('MOCAP{}HTR'.format(slash), 'Annotations{}corrected'.format(slash))
+        mbfile = mbfile.replace('{}_'.format(args.exp), '')
+        mbfile = mbfile.replace('.htr', '.txt')
+        mbfile = mbfile.replace('test_', '')
+        beat_music += [np.unique(np.loadtxt(mbfile))]
+
         audio, true_motion = format_motion_audio(fileslist[j], config, slash, snr, noise, align[j])
         feats = None
         predicted_motion = np.zeros((true_motion.shape[0], true_motion.shape[1]), dtype=np.float32)
-        feats = np.zeros((true_motion.shape[0], args.initOpt[1]), dtype=np.float32)
+        feats = np.zeros((true_motion.shape[0]-1, args.initOpt[1]), dtype=np.float32)
         start = timeit.default_timer()
         predicted_motion[0,:]=true_motion[0,:]
         state = model.state
-        #state = [None]*len(model.state)
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
           for k in range(true_motion.shape[0]-1):
             current_step=predicted_motion[k:k+1,:]
             audiofeat = model.audiofeat(Variable(xp.asarray(audio[k:k+1])))
-            state, outnet= model.forward(state, Variable(xp.asarray(current_step)), audiofeat)
-
+            rnnAudio, state, outnet= model.forward(state, Variable(xp.asarray(current_step)), audiofeat, True)
             predicted_motion[k+1] = chainer.cuda.to_cpu(outnet.data)
-            feats[k+1] = chainer.cuda.to_cpu(audiofeat.data[:,0,0])
+            feats[k] = chainer.cuda.to_cpu(rnnAudio.data)
+
         time = timeit.default_timer() - start
         predicted_motion = (predicted_motion - config['intersec_pos'])/config['slope_pos']
         predicted_motion = render_motion(predicted_motion,  config, scale=args.scale)
         true_motion = (true_motion - config['intersec_pos'])/config['slope_pos']
         true_motion = render_motion(true_motion, config, scale=args.scale)
-        #plt.plot(predicted_motion[:,3], label='predicted')
-        #plt.plot(true_motion[:,3], label='true')
-        #plt.legend()
-        #plt.show()
+
+        #with h5py.File('feats_{}.h5'.format(args.encoder), 'w') as df5:
+        #  ds =df5.create_dataset('data',data=feats)
         #exit()
         rst_time += [time]
         rst_noise += [noise]
         rst_snr += [snr]
         rst_true += [true_motion]
         rst_predict += [predicted_motion]
-        mbfile = fileslist[j].replace('MOCAP{}HTR'.format(slash), 'Annotations{}corrected'.format(slash))
-        mbfile = mbfile.replace('{}_'.format(args.exp), '')
-        mbfile = mbfile.replace('.htr', '.txt')
-        mbfile = mbfile.replace('test_', '')
-        beat_music += [np.unique(np.loadtxt(mbfile))]
+
         filename += [fileslist[j]]
         rst_feats +=[feats]
 
   # Here list all evalutions definitions
-  eval_error_generations(rst_time, rst_noise, rst_snr, rst_true, rst_predict)
+  eval_error_generations(rst_time, rst_noise, rst_snr, rst_true, rst_predict, filename)
   eval_rom(rst_time, rst_noise, rst_snr, rst_true, rst_predict, beat_music, filename)
   eval_bss(rst_noise, rst_snr, rst_feats, filename)
   return

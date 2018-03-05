@@ -77,88 +77,9 @@ def prepare_motion():
         ds = f.create_dataset('input', data=audiodata)
         ds = f.create_dataset('current', data=current_step)
 
-
-def prepare_audio():
-  with open(args.list) as f:
-    files = f.readlines()
-  files = [ x.split('\n')[0] for x in files ]
-  list_htr_files= [x.split('\t')[0] for x in files ]
-
-  audio_max = 5.
-  audio_min = -120.
-
-  print('### Preparing dataset...')
-  config['slope_wav'] = (config['rng_wav'][1]-config['rng_wav'][0]) / (audio_max-audio_min)
-  config['intersec_wav'] = config['rng_wav'][1] - config['slope_wav'] * audio_max
-
-  prefix = '{}/train_preaudio_'.format(config['out_folder'])
-  try:
-    for filename in glob.glob('{}*'.format(prefix)):
-      os.remove(filename)
-  except Exception as e:
-    pass
-
-  for j in range(len(list_htr_files)):
-    audiodata = format_audio_noise(list_htr_files[j], config, snr_lst)
-    h5file = '{}f{:03d}.h5'.format(prefix, j)
-    with h5py.File(h5file, 'a') as f:
-      for _key in audiodata:
-        key = 'Clean' if _key == 'snr_None' else _key
-        ds = f.create_dataset(key, data=audiodata[_key])
-
-
-def prepare_gane2e():
-  with open(args.list) as f:
-    files = f.readlines()
-  files = [ x.split('\n')[0] for x in files ]
-  list_htr_files= []
-  align = []
-  for x in files:
-    _file, _align = x.split('\t')
-    list_htr_files += [_file]
-    align += [_align]
-
-  if not os.path.exists(config['file_pos_minmax'] ):
-    calculate_minmax(list_htr_files)
-  with h5py.File(config['file_pos_minmax'], 'r') as f:
-    pos_min = f['minmax'][0,:][None,:] 
-    pos_max = f['minmax'][1,:][None,:] 
-
-  print('### Preparing dataset...')
-
-  div = pos_max-pos_min
-  div[div==0] = 1
-  config['slope_pos'] = (config['rng_pos'][1] - config['rng_pos'][0])/ div
-  config['intersec_pos'] = config['rng_pos'][1] - config['slope_pos'] * pos_max
-
-  audio_max = 5.
-  audio_min = -120.
-  config['slope_wav'] = (config['rng_wav'][1]-config['rng_wav'][0]) / (audio_max-audio_min)
-  config['intersec_wav'] = config['rng_wav'][1] - config['slope_wav'] * audio_max
-
-  prefix = '{}/train_gane2e_'.format(config['out_folder'])
-  try:
-    for filename in glob.glob('{}*'.format(prefix)):
-      os.remove(filename)
-  except Exception as e:
-    pass
-
-  for j in range(len(list_htr_files)):
-    for i in range(len(snr_lst)):
-      cleandata, audiodata, current_step = format_motion_gan(list_htr_files[j], config, snr=snr_lst[i], align=align[j])
-      h5file = '{}f{:03d}.h5'.format(prefix, j*len(snr_lst)+i)
-      with h5py.File(h5file, 'a') as f:
-        ds = f.create_dataset('input', data=audiodata)
-        ds = f.create_dataset('current', data=current_step)
-        ds = f.create_dataset('clean', data=cleandata)
-
 def main():
   if args.type == 'motion':
     prepare_motion()
-  elif args.type == 'denoise':
-    prepare_audio()
-  elif args.type == 'gane2e':
-    prepare_gane2e()
   else:
     print_error('Type of data has not been configured.')
     raise TypeError()

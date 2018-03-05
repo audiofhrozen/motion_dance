@@ -40,17 +40,17 @@ class Dancer(chainer.Chain):
             loss += F.mean_squared_error(nx_step[:,i], y) #F.mean_squared_error mean_absolute_error
             context = y
         self.loss = loss
-        stdout.write('loss={:.04f}\r'.format(chainer.cuda.to_cpu(loss.data)))
+        stdout.write('loss={:.04f}\r'.format(float(chainer.cuda.to_cpu(loss.data))))
         stdout.flush()
         return self.loss
 
-    def forward(self, state, h1, h):
+    def forward(self, state, h1, h, eval=False):
         act = F.elu
         ec1, eh1 = self.enc_lstm1(state['ec1'], state['eh1'], h)
         ec2, eh2 = self.enc_lstm2(state['ec2'], state['eh2'], eh1)
         ec3, eh3 = self.enc_lstm3(state['ec3'], state['eh3'], eh2)
-        h = act(self.fc01(eh3)) 
-        h = F.concat((h1,h))
+        _h = act(self.fc01(eh3)) 
+        h = F.concat((h1,_h))
         adh1 = state['eh3']+state['dh1'] if state['eh3'] is not None else None
         dc1, dh1 = self.dec_lstm1(state['dc1'], adh1, h)
         adh2 = state['eh2']+state['dh2'] if state['eh2'] is not None else None
@@ -61,4 +61,6 @@ class Dancer(chainer.Chain):
         new_state = dict()
         for key in state:
             new_state[key] = locals()[key]
+        if eval:
+            return _h, new_state, h
         return new_state, h

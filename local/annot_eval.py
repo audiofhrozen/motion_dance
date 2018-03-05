@@ -9,6 +9,7 @@ import numpy as np
 from madmom.features import beats
 from motion_format import motionread, calculate_rom, extract_beats, JOINTS
 import utillib.BTET.beat_evaluation_toolbox as be
+import multiprocessing as mp
 import pandas as pd
 
 try:
@@ -17,7 +18,6 @@ except Exception as e:
   import matplotlib as mpl
   mpl.use('Agg')
   pass
-    
 from matplotlib import pyplot as plt
 
 def procesmadmomRNN(proc, filename):
@@ -63,6 +63,18 @@ def readfromfile(filename, folder):
     pass 
   return databeats
 
+def calculate_precission(arguments):
+  # This sequence takes much time, so it's been parallelized
+  # TODO: Need to improve sequence calculate_rom 
+  # and change the way to extract the beats from the motion
+  idx, rotations, musicbf, musicb, mp_result = arguments
+  rots = rotations[idx:]
+  motion_beat_frame = calculate_rom(rots, args.alignframe)
+  motion_beat_frame = extract_beats(musicbf, motion_beat_frame, args.alignframe)
+  align_beat = motion_beat_frame.astype(np.float)/float(args.fps)
+  _, precission, _, _ = be.fMeasure(musicb , align_beat)
+  mp_result.append([idx, precission, align_beat])
+
 def main():
   with open(args.list) as f:
     filelist = f.readlines()
@@ -97,21 +109,16 @@ def main():
   print('Aligning motion files with each music...')
   motion_beat = []
   align_idx = []
-  #TODO: Needs to be parallelized (?)
   for i in range(len(music_beat)):
-    _rot_quats = motionread(filelist[i], 'htr', 'euler', JOINTS)
+    mp_result = manager.list([])
+    rotations = motionread(filelist[i], 'htr', 'euler', JOINTS)
     music_beat_frame = np.asarray(music_beat[i]*float(args.fps), dtype=np.int)
-    precission = np.zeros((args.motionrange))
-    align_beat = []
-    for j in range(args.motionrange):
-      rot_quats = _rot_quats[j:]
-      motion_beat_frame = calculate_rom(rot_quats, args.alignframe)
-      motion_beat_frame = extract_beats(music_beat_frame, motion_beat_frame, args.alignframe)
-      align_beat += [motion_beat_frame.astype(np.float)/float(args.fps)]
-      _, precission[j], _, _ = be.fMeasure(music_beat[i] , align_beat[j])
-    align_idx += [np.where(precission==np.amax(precission))[0][0]] 
-    motion_beat += [align_beat[align_idx[i]]]
-
+    rotlist = ([x,rotations, music_beat_frame,  music_beat[i], mp_result] for x in range(args.motionrange))
+    pool.map(calculate_precission, rotlist)
+    precission =  np.asarray([x[1] for x in mp_result]) 
+    max_prec = np.where(precission==np.amax(precission))[0][0]
+    align_idx += [mp_result[max_prec][0]]
+    motion_beat += [mp_result[max_prec][2]]
   print('Evaluating MADMOM bpm')
   R_mad = be.evaluate_db(music_beat,mad_beat,measures='fMeasure', doCI=True)
   print('Evaluating Marsyas-ibt bpm')
@@ -153,8 +160,11 @@ if __name__=='__main__':
   parser.add_argument('--motionrange', '-m', type=int, help='Range allowed between music and motion files', default=0)
   parser.add_argument('--fps', '-f', type=int, help='Motion file FPS', default=0)
   parser.add_argument('--stage', '-s', type=str, help='Train or Test')
+  parser.add_argument('--workers', '-w', type=int, help='Jobs on Parallel', default=6)
   args = parser.parse_args()
   platform = platform.system()
+  manager=mp.Manager()
+  pool=mp.Pool(processes=args.workers)
   if platform == 'Windows':
     slash='\\'
   elif platform == 'Linux':
