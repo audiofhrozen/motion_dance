@@ -140,7 +140,7 @@ def main():
   if not os.path.exists(args.save):
     os.makedirs(args.save)
 
-  serializers.save_hdf5('{}/trained.model'.format(args.save), model)
+  serializers.save_hdf5('{}/trained_{}.model'.format(args.save, args.epoch), model)
 
 if __name__=='__main__':
   parser = argparse.ArgumentParser(description='Training Program based on Chainer Framework')

@@ -20,7 +20,25 @@ except Exception as e:
   pass
 from matplotlib import pyplot as plt
 
-def procesmadmomRNN(proc, filename):
+def processMarsyas(filename):
+  wav_fn = filename.replace('MOCAP{}HTR'.format(slash), 'AUDIO{}WAVE'.format(slash))
+  wav_fn = wav_fn.replace('{}_'.format(args.exp), '')
+  wav_fn = wav_fn.replace('test_', '')
+  wav_fn = wav_fn.replace('.htr', '.wav')
+  if not os.path.exists(wav_fn):
+    mp3_fn = wav_fn.replace('WAVE', 'MP3')
+    mp3_fn = mp3_fn.replace('wav', 'mp3')
+    print('Wavefile not found in folder, converting from mp3 file.')
+    os.system('sox {} -c 1 -r 16000 {}'.format(mp3_fn, wav_fn))
+  os.system('ibt -off -o "beats" {} tmp_marsyas.txt'.format(wav_fn))
+  with open('tmp_marsyas.txt') as f:
+    beats=f.readlines()
+  beat=[float(x.split(' ')[0]) for x in beats]
+  beat = np.asarray(beat)
+  os.remove('tmp_marsyas.txt')
+  return beat
+
+def processmadmomRNN(proc, filename):
   wav_fn = filename.replace('MOCAP{}HTR'.format(slash), 'AUDIO{}WAVE'.format(slash))
   wav_fn = wav_fn.replace('{}_'.format(args.exp), '')
   wav_fn = wav_fn.replace('test_', '')
@@ -48,7 +66,7 @@ def plot_vals(labels, means, stds, comp, title, idx):
   ax.set_xticks(ind + width*i / 2)
   ax.set_xticklabels(labels) #rotation=40
   ax.legend(rects, comp)
-  fig.savefig('{}{}init_bpm_results_{}.png'.format(args.output, slash,idx))
+  fig.savefig('{}{}{}_init_bpm_results_{}.png'.format(args.output, slash, args.stage,idx))
   return
 
 def readfromfile(filename, folder):
@@ -64,8 +82,8 @@ def readfromfile(filename, folder):
   return databeats
 
 def calculate_precission(arguments):
-  # This sequence takes much time, so it's been parallelized
-  # TODO: Need to improve sequence calculate_rom 
+  # This sequence takes too much time, so it's been parallelized
+  # TODO: Need to improve sequence calculate_rom to translations instead of rotations 
   # and change the way to extract the beats from the motion
   idx, rotations, musicbf, musicb, mp_result = arguments
   rots = rotations[idx:]
@@ -92,12 +110,17 @@ def main():
     music_beat += [databeats]
 
     databeats = readfromfile(fn,'Annotations{}Marsyas_ibt'.format(slash))
-    if not databeats is None:
-      marsyas_beat += [databeats]
+    if databeats is None:
+      databeats = processMarsyas(fn)
+      mssfn = fn.replace('MOCAP{}HTR'.format(slash), 'Annotations{}Marsyas_ibt'.format(slash)) 
+      mssfn = mssfn.replace('{}_'.format(args.exp), '')
+      mssfn = mssfn.replace('.htr', '.txt')
+      np.savetxt(mssfn,databeats, delimiter='\n', fmt='%.09f')
+    marsyas_beat += [databeats]
 
     databeats = readfromfile(fn,'Annotations{}madmom'.format(slash))
     if databeats is None:
-      databeats = procesmadmomRNN(proc, fn)
+      databeats = processmadmomRNN(proc, fn)
       mdmfn = fn.replace('MOCAP{}HTR'.format(slash), 'Annotations{}madmom'.format(slash)) 
       mdmfn = mdmfn.replace('{}_'.format(args.exp), '')
       mdmfn = mdmfn.replace('.htr', '.txt')
@@ -131,10 +154,8 @@ def main():
                 R_mar['scores_mean']['fMeasure'],
                 R_mot['scores_mean']['fMeasure']]}
   df = pd.DataFrame(init_results, columns = ['comparison', 'fscore'])
-  df.to_csv('{}{}init_results.csv'.format(args.output, slash), encoding='utf-8')
-
+  df.to_csv('{}{}{}_init_results.csv'.format(args.output, slash, args.stage), encoding='utf-8')
   results =[R_mad, R_mot, R_mar]
-  
   evals_mean = np.zeros((len(evals_name), len(results)))
   evals_std = np.zeros((len(evals_name), len(results),2))
   for i in range(len(evals_name)):
@@ -144,7 +165,6 @@ def main():
       evals_std[i, j, 1] = np.abs(results[j]['scores_conf'][evals_name[i]][1] - evals_mean[i,j])
   res_label=['Madmom', 'Dancer', 'Marsyas-ibt']
   plot_vals(evals_name, evals_mean, evals_std, res_label, 'Bootstrapping 95% confidence interval w.r.t. music beat', 1)
-  
   align_txt = [ '{}\t{}'.format(filelist[i], align_idx[i]) for i in range(len(music_beat))]
   align_txt = '\n'.join(align_txt)
   with open('{}{}{}_files_align.txt'.format(args.output, slash, args.stage), 'w+') as f:
@@ -161,6 +181,8 @@ if __name__=='__main__':
   parser.add_argument('--fps', '-f', type=int, help='Motion file FPS', default=0)
   parser.add_argument('--stage', '-s', type=str, help='Train or Test')
   parser.add_argument('--workers', '-w', type=int, help='Jobs on Parallel', default=6)
+  parser.add_argument('--bpm_mdm', type=int, help='Process and compare the beats vs MADMOM Lib', default=0)
+  parser.add_argument('--bpm_marsyas', type=int, help='Process and compare the beats vs Marsyas', default=0)
   args = parser.parse_args()
   platform = platform.system()
   manager=mp.Manager()

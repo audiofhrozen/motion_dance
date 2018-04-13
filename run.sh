@@ -60,8 +60,6 @@ silence=10
 scale=100.0
 featextract="$feats"Feat 
 
-
-exp_name="$exp"_"$net"_"$rot"
 LSTM_units=500
 CNN_outs=65
 network="./models/net_$net.py"
@@ -76,8 +74,8 @@ echo "============================================================"
 echo "                        DeepDancer"
 echo "============================================================"
 
-exp_name="$exp"_"$net"_"$rot"_"$feats"_initstep_"$init_step"
-exp_folder=./exp/$exp_name
+exp_name="$net"_"$rot"_"$feats"_initstep_"$init_step"
+exp_folder=./exp/"$exp"/$exp_name
 exp_data=./exp/data/"$exp"_"$rot"
 
 echo "----- Exp: $exp_name"
@@ -90,7 +88,7 @@ if [ $stage -le 0 ]; then
   mkdir -p $exp_data/annots 
   trn_lst=$exp_data/annots/train.lst
   tst_lst=$exp_data/annots/test.lst
-  find $DATA_EXTRACT/MOCAP/HTR/ -name $exp'*.htr' | sort -u > $trn_lst
+  find $DATA_EXTRACT/MOCAP/HTR/ -name $exp'_*.htr' | sort -u > $trn_lst
   find $DATA_EXTRACT/MOCAP/HTR/ -name 'test_'$exp'*.htr' | sort -u > $tst_lst
   echo "----- Preparing training annotations..."
   local/annot_eval.py -l $trn_lst -e $exp -o $exp_data/annots -m $motion_align -a $frame_align -f $fps -s "train" || exit 1
@@ -126,7 +124,7 @@ if [ $stage -le 3 ]; then
   mkdir -p $exp_folder/evaluation $exp_folder/results $exp_folder/untrained $exp_folder/images
   local/evaluate.py --folder $exp_folder --list $tst_lst --exp $exp --rot $rot --gpu $gpu \
                     --network $network --initOpt $LSTM_units $CNN_outs $Net_out \
-                    --fps $fps --scale $scale --model $exp_folder/trained/endtoend/trained.model \
+                    --fps $fps --scale $scale --model $exp_folder/trained/endtoend/trained_$epoch.model \
                     --snr 20 10 0 --freq $frqsmp --hop $hop --wlen $wlen --encoder $featextract \
                     --stage "end2end" --alignframe $frame_align || exit 1
 fi

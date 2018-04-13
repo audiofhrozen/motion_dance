@@ -40,12 +40,10 @@ For real-time emulation:
 - python-osc (for python v3)
 - vlc (optional)
 
+## ToDo:
+- New Dataset
+- Detailed Audio information
+
 ## References
 
 [1]Nelson Yalta, Kazuhiro Nakadai, Tetsuya Ogata, "Sequential Deep Learning for Dancing Motion Generation", SIG-Challenge 2016
-
-[2]
-
-[3]
-
-[4]

@@ -58,6 +58,7 @@ def datafeed():
   slope = (rng[1]-rng[0]) / (audio_max-audio_min)
   intersec = rng[1] - slope * audio_max
   data_w.put('start')
+  #sleep(0.5)
   if vlclib:
     vlcplayer.play()
   if enable_record:
@@ -104,6 +105,7 @@ def netdancer():
   model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
   ext = os.path.basename(args.pretrained).split('.')
   ext = ext[1] if len(ext)>1 else None
+
   try:
     if ext == 'model':
       serializers.load_hdf5(args.pretrained, model)
@@ -120,8 +122,9 @@ def netdancer():
   start = False
   config ={'rot' : 'quat'}
   frame = 0
-  max_frames = 8000
+  max_frames = 12000
   feats=np.zeros((max_frames,args.initOpt[1]))
+  steps=np.zeros((max_frames,54))
   while True:
     while data_w.empty():
       sleep(0.01)
@@ -135,8 +138,26 @@ def netdancer():
         if not pyver3:
           oscmsg = OSC.OSCMessage()
           oscmsg.setAddress('WidgetTV')
-          oscmsg.append(youtube_link.format(videolink))
+          if videolink is None:
+            fn=os.path.basename(args.track).split('.')[0]
+            oscmsg.append('file:///D:/nyalta/Documents/black/index.html')
+            c.send(oscmsg)
+            oscmsg = OSC.OSCMessage()
+            oscmsg.setAddress('WidgetTV')
+            oscmsg.append('file:///D:/nyalta/Documents/black/index.html?dc={}'.format(fn))
+            c.send(oscmsg)
+          else:
+            oscmsg.append(youtube_link.format(videolink))
+            c.send(oscmsg)
+
+          expname = args.pretrained.split('exp/')[1]
+          expname = expname.split('/')
+          expname = '{}_{}'.format(expname[0],expname[1])
+          oscmsg = OSC.OSCMessage()
+          oscmsg.setAddress('ExpName')
+          oscmsg.append(expname.replace('_', ' '))
           c.send(oscmsg)
+
         continue
       elif inp=='end':
         if enable_record:
@@ -144,9 +165,14 @@ def netdancer():
           ws.disconnect()
         start=False
         fn=os.path.basename(args.track).split('.')[0]
-        fn=args.pretrained.replace('trained/endtoend/trained.model', 'untrained/{}_feats.h5'.format(fn))
+        fn='{}/{}_feats.h5'.format(args.save, fn)
         with h5py.File(fn, 'w') as f:
           ds=f.create_dataset('feats',data=feats[0:frame])
+          ds=f.create_dataset('steps',data=steps[0:frame])
+        oscmsg = OSC.OSCMessage()
+        oscmsg.setAddress('ExpName')
+        oscmsg.append('ExpName')
+        c.send(oscmsg)
         break
 
     if start:
@@ -161,11 +187,11 @@ def netdancer():
         raise e
       
       current_step = chainer.cuda.to_cpu(current_step.data)
-      if frame < max_frames:
-        feats[frame] = chainer.cuda.to_cpu(_h.data)
-
       predicted_motion = (current_step -intersec_pos)/ slope_pos
       rdmt = render_motion(predicted_motion, config, scale=args.height)
+      if frame < max_frames:
+        feats[frame] = chainer.cuda.to_cpu(_h.data)
+        steps[frame] = rdmt[0]
       for i in range(len(list_address)):
         if pyver3:
           oscmsg = osc_message_builder.OscMessageBuilder(address=args.character) 
@@ -207,7 +233,11 @@ def signal_handler(signal, frame):
   except OSError:
     pass
   if vlclib:
-    vlcplayer.stop()
+    try:
+      vlcplayer.stop()
+    except Exception as e:
+      pass
+    
   print('\nBye')
   sys.exit(0)
 
@@ -235,6 +265,7 @@ if __name__ == '__main__':
   parser.add_argument('--character', '-c', type=str, help='UE Character name definition')
   parser.add_argument('--record', '-r', type=int, help='Record Screen', default=0)
   parser.add_argument('--host', type=str, help='UE Server ip')
+  parser.add_argument('--save', '-s', type=str, help='Saving folder')
 
   args = parser.parse_args()
 
@@ -266,6 +297,7 @@ if __name__ == '__main__':
     ws = obsws(args.host, args.port_osb, None)
     ws.connect()
   print('Using gpu id:{} - {}'.format(args.gpu, gpu_name))
+  print('Using pretrained model {}'.format(args.pretrained))
   
   youtube_link = 'https://www.youtube.com/tv#/watch?v={}'
   rng_pos = [-0.9, 0.9]
@@ -277,7 +309,12 @@ if __name__ == '__main__':
   with open('{}/Annotations/youtube_links.txt'.format(DATA_FOLDER)) as f:
     links = f.readlines()
   flname = os.path.basename(args.track).split('.')[0]
-  videolink = [ x.split('\t')[1] for x in links if flname in x ][0]
+  try:
+    videolink = [ x.split('\t')[1] for x in links if flname in x ][0]#
+  except Exception as e:
+    videolink = None
+    pass
+  
   if vlclib:
     vlcplayer = vlc.MediaPlayer(args.track)
   main()

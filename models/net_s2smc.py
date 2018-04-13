@@ -8,6 +8,7 @@ import chainer.links as L
 from chainer import Variable
 import numpy as np
 from sys import stdout 
+from chainer.cuda import cupy as xp
 
 
 class Dancer(chainer.Chain):
@@ -29,16 +30,33 @@ class Dancer(chainer.Chain):
                 'eh1': None, 'eh2': None,'eh3': None, \
                 'dc1': None,'dc2': None,'dc3': None, \
                 'dh1': None,'dh2': None,'dh3': None }
+        self.delta_sgn = 0
+        self.ot =0
+        self.h = 0
+
 
     def __call__(self, variables):
-        in_audio, context, nx_step = variables
+        in_audio, curr_step, nx_step = variables
+        batchsize = in_audio.shape[0]
+        sequence = in_audio.shape[1]
         self.loss = loss = 0
         state = self.state
-        for i in range(in_audio.shape[1]):
-            h = self.audiofeat(in_audio[:,i])
-            state, y = self.forward(state, context, h)
-            loss += F.mean_squared_error(nx_step[:,i], y) #F.mean_squared_error mean_absolute_error
-            context = y
+        self.ot = xp.std(curr_step, axis=1)
+        for i in range(sequence):            
+            h, state, y = self.forward(state, curr_step, self.audiofeat(in_audio[:,i]), True)
+            loss += F.mean_squared_error(nx_step[:,i], y) 
+            curr_step = y
+            ot = xp.std(nx_step[:,i], axis=1)*batchsize # y
+            delta_sgn = xp.sign(ot - self.ot)
+            if i > 0:
+                labels = xp.minimum(delta_sgn + self.delta_sgn, 1) 
+                labels = xp.asarray(labels, dtype=xp.int32)
+                loss2 =  F.contrastive(h, self.h, labels)/sequence #F.mean_squared_error mean_absolute_error
+                if float(chainer.cuda.to_cpu(loss2.data)) > 0.:
+                    loss += loss2 #F.mean_squared_error mean_absolute_error
+            self.h = h     
+            self.ot = ot
+            self.delta_sgn = delta_sgn          
         self.loss = loss
         stdout.write('loss={:.04f}\r'.format(float(chainer.cuda.to_cpu(loss.data))))
         stdout.flush()
@@ -49,14 +67,11 @@ class Dancer(chainer.Chain):
         ec1, eh1 = self.enc_lstm1(state['ec1'], state['eh1'], h)
         ec2, eh2 = self.enc_lstm2(state['ec2'], state['eh2'], eh1)
         ec3, eh3 = self.enc_lstm3(state['ec3'], state['eh3'], eh2)
-        _h = act(self.fc01(eh3)) 
+        _h = F.tanh(self.fc01(eh3))
         h = F.concat((h1,_h))
-        adh1 = state['eh3']+state['dh1'] if state['eh3'] is not None else None
-        dc1, dh1 = self.dec_lstm1(state['dc1'], adh1, h)
-        adh2 = state['eh2']+state['dh2'] if state['eh2'] is not None else None
-        dc2, dh2 = self.dec_lstm2(state['dc2'], adh2, dh1)
-        adh3 = state['eh1']+state['dh3'] if state['eh1'] is not None else None
-        dc3, dh3 = self.dec_lstm3(state['dc3'], adh3, dh2)
+        dc1, dh1 = self.dec_lstm1(state['dc1'], state['dh1'], h)
+        dc2, dh2 = self.dec_lstm2(state['dc2'], state['dh2'], dh1)
+        dc3, dh3 = self.dec_lstm3(state['dc3'], state['dh3'], dh2)
         h = act(self.out_signal(dh3))
         new_state = dict()
         for key in state:

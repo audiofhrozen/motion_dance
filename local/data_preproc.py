@@ -6,7 +6,7 @@ import warnings
 warnings.filterwarnings('ignore')
 import glob, os, h5py, argparse, shutil, soundfile, platform, colorama
 import numpy as np
-from motion_format import format_motion_audio, format_audio_noise, format_motion_gan
+from motion_format import format_motion_audio
 from motion_format import motionread, JOINTS, Configuration
 from utillib.print_utils import print_info, print_warning, print_error
 

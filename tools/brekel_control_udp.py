@@ -51,7 +51,7 @@ def main():
 
   sleep(0.1)
   #p.audio_set_volume(100)
-  length = p.get_length()/1000 - 5#convert to seconds
+  length = p.get_length()/1000 - 2#convert to seconds
   sleep(length)
 
   MESSAGE = 'Brekel_recording_stop\t{}\t{}'.format(Computer_Name,PID)
