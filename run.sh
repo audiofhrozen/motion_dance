@@ -21,6 +21,7 @@ workers=4
 sequence=150
 init_step=0
 feats="CNN"
+basic_steps=1
 while test $# -gt 0
 do
     case "$1" in
@@ -89,13 +90,13 @@ if [ $stage -le 0 ]; then
   trn_lst=$exp_data/annots/train.lst
   tst_lst=$exp_data/annots/test.lst
   find $DATA_EXTRACT/MOCAP/HTR/ -name $exp'_*.htr' | sort -u > $trn_lst
-  find $DATA_EXTRACT/MOCAP/HTR/ -name 'test_'$exp'*.htr' | sort -u > $tst_lst
+  steps_folder=$DATA_EXTRACT/Annotations/steps
   echo "----- Preparing training annotations..."
-  local/annot_eval.py -l $trn_lst -e $exp -o $exp_data/annots -m $motion_align -a $frame_align -f $fps -s "train" || exit 1
-  echo "----- Preparing test annotations..."
-  local/annot_eval.py -l $tst_lst -e $exp -o $exp_data/annots -m $motion_align -a $frame_align -f $fps -s "test" || exit 1
+  local/annot_eval.py -l $trn_lst -e $exp -o $exp_data/annots -m $motion_align -a $frame_align \
+                          -f $fps -s "train"  --steps_folder $steps_folder \
+                          --basic_steps $basic_steps --beats_range 8 --beats_skips 5 || exit 1
 fi
-#exit 0
+exit 0
 echo "----- End-to-End stage"
 
 if [ $stage -le 1 ]; then 

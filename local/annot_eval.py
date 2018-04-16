@@ -2,15 +2,17 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import warnings
+warnings.filterwarnings('ignore')
+import os, sys, argparse, glob, platform, h5py
 
-import os, sys, argparse, glob, platform
-from scipy import signal
-import numpy as np
 from madmom.features import beats
 from motion_format import motionread, calculate_rom, extract_beats, JOINTS
-import utillib.BTET.beat_evaluation_toolbox as be
 import multiprocessing as mp
+import numpy as np
 import pandas as pd
+from scipy import signal, stats
+import utillib.BTET.beat_evaluation_toolbox as be
 
 try:
   disp=os.environ['DISPLAY']
@@ -102,8 +104,8 @@ def main():
   music_beat = []
   marsyas_beat = []
   mad_beat = []
-  for fn in filelist:
-    print(fn)
+  for i in range(len(filelist)):
+    fn = filelist[i]
     databeats = readfromfile(fn,'Annotations{}corrected'.format(slash))
     if databeats is None:
       raise ValueError('No music beat annotations found for exp {}, prepare first the beat annotations.'.format(args.exp))
@@ -141,7 +143,53 @@ def main():
     precission =  np.asarray([x[1] for x in mp_result]) 
     max_prec = np.where(precission==np.amax(precission))[0][0]
     align_idx += [mp_result[max_prec][0]]
-    motion_beat += [mp_result[max_prec][2]]
+    motion_beat += [mp_result[max_prec][2]] 
+
+  stepfiles = glob.glob('{}{}{}_*.txt'.format(args.steps_folder, slash, args.exp))
+  if len(stepfiles) < 1:
+    print('No steps annotations files found. Preparing dance steps with basic configuration')
+    entropy_eval = np.ones((len(filelist), args.beats_skips,args.beats_range)) * 10.
+    for i in range(len(filelist)):
+      rotations = motionread(filelist[i], 'htr', 'euler', JOINTS, True)
+      idx = align_idx[i]
+      aligned_motion = rotations[idx:,]
+      music_beat_frame = np.asarray(music_beat[i]*float(args.fps), dtype=np.int)
+      for beat_start in range (args.beats_skips):
+        for beat_length in range (1,args.beats_range):
+          start_idx = beat_start
+          basic_step = None
+          entropy_test = []
+          while start_idx+beat_length < music_beat[i].shape[0]:
+            start = music_beat_frame[start_idx]
+            stop = music_beat_frame[start_idx+beat_length]
+            if basic_step is None:
+              basic_step = aligned_motion[start:stop]
+            else:
+              eval_step = aligned_motion[start:stop]
+              new_lenght = eval_step.shape[0]
+              resample_step = signal.resample(basic_step, new_lenght)
+              entropy_step= stats.entropy(eval_step,resample_step)*eval_step.shape[1]
+              entropy_test += [entropy_step]
+            start_idx+=beat_length
+          entropy_test = np.asarray(entropy_test)
+          entropy_test[entropy_test==np.inf]=0
+          entropy_eval[i, beat_start, beat_length] = np.mean(entropy_test)
+    best_beat = np.argwhere(np.amin(entropy_eval)==entropy_eval)
+    print(best_beat)
+    i = best_beat[0,0]
+    start = music_beat_frame[best_beat[0,1]]
+    stop = music_beat_frame[best_beat[0,1]+best_beat[0,2]]
+    rotations = motionread(filelist[i], 'htr', 'euler', JOINTS, True)
+    aligned_motion = rotations[align_idx[i]:,]
+    basic_step = aligned_motion[start:stop]
+    savefile = '{}{}{}_basic_step.h5'.format(args.output, slash, args.stage)
+    with h5py.File(savefile, 'w') as F:
+      ds = F.create_dataset('filename', data= filelist[i])
+      ds = F.create_dataset('location', data=best_beat)
+      ds = F.create_dataset('dance_step', data=basic_step)
+  else:
+    print('Loading dance steps data')
+
   print('Evaluating MADMOM bpm')
   R_mad = be.evaluate_db(music_beat,mad_beat,measures='fMeasure', doCI=True)
   print('Evaluating Marsyas-ibt bpm')
@@ -183,6 +231,10 @@ if __name__=='__main__':
   parser.add_argument('--workers', '-w', type=int, help='Jobs on Parallel', default=6)
   parser.add_argument('--bpm_mdm', type=int, help='Process and compare the beats vs MADMOM Lib', default=0)
   parser.add_argument('--bpm_marsyas', type=int, help='Process and compare the beats vs Marsyas', default=0)
+  parser.add_argument('--steps_folder', type=str, help='Folder with annotations of dance steps')
+  parser.add_argument('--basic_steps', type=int, help='Dance steps in the motion', default=1)
+  parser.add_argument('--beats_range', type=int, help='Maximum value of music beats used for a dance step', default=0)
+  parser.add_argument('--beats_skips', type=int, help='Maximum value of music beats skipped for a dance step', default=0)
   args = parser.parse_args()
   platform = platform.system()
   manager=mp.Manager()
