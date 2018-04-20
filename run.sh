@@ -102,7 +102,7 @@ echo "----- End-to-End stage"
 if [ $stage -le 1 ]; then 
   echo "----- Preparing training data for motion ..."
   mkdir -p $exp_data/data $exp_data/minmax
-  local/data_preproc.py --type motion --exp $exp --list $exp_data/annots/train_files_align.txt \
+  local/data_prepare.py --type motion --exp $exp --list $exp_data/annots/train_files_align.txt \
                         --save $exp_data --rot $rot --snr 5 --silence $silence --fps $fps\
                         --hop $hop --wlen $wlen --scale $scale || exit 1
   #TODO: Add preparation for testing/validation during training (Need Larger dataset or to split in parts the whole sequence)
