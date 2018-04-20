@@ -21,7 +21,7 @@ workers=4
 sequence=150
 init_step=0
 feats="CNN"
-basic_steps=1
+dance_steps=1
 while test $# -gt 0
 do
     case "$1" in
@@ -85,18 +85,17 @@ if [ $stage -le -1 ]; then
   local/getdata.sh 
 fi
 
+trn_lst=$exp_data/annots/train.lst
+tst_lst=$exp_data/annots/test.lst
 if [ $stage -le 0 ]; then 
   mkdir -p $exp_data/annots 
-  trn_lst=$exp_data/annots/train.lst
-  tst_lst=$exp_data/annots/test.lst
   find $DATA_EXTRACT/MOCAP/HTR/ -name $exp'_*.htr' | sort -u > $trn_lst
   steps_folder=$DATA_EXTRACT/Annotations/steps
   echo "----- Preparing training annotations..."
   local/annot_eval.py -l $trn_lst -e $exp -o $exp_data/annots -m $motion_align -a $frame_align \
                           -f $fps -s "train"  --steps_folder $steps_folder \
-                          --basic_steps $basic_steps --beats_range 8 --beats_skips 5 || exit 1
+                          --basic_steps $dance_steps --beats_range 8 --beats_skips 5 || exit 1
 fi
-exit 0
 echo "----- End-to-End stage"
 
 if [ $stage -le 1 ]; then 
@@ -118,12 +117,12 @@ if [ $stage -le 2 ]; then
                         --initOpt $LSTM_units $CNN_outs $Net_out --frequency 5 || exit 1
 fi
 
-tst_lst=$exp_data/annots/test_files_align.txt 
-
 if [ $stage -le 3 ]; then
   echo "Evaluating Network"
+  find $DATA_EXTRACT/AUDIO/MP3 -name '*.mp3' | sort -u > $tst_lst
   mkdir -p $exp_folder/evaluation $exp_folder/results $exp_folder/untrained $exp_folder/images
-  local/evaluate.py --folder $exp_folder --list $tst_lst --exp $exp --rot $rot --gpu $gpu \
+  local/evaluate.py --folder $exp_folder --list $exp_data/annots/train_files_align.txt \
+                    --exp $exp --rot $rot --gpu $gpu --audio_list $tst_lst \
                     --network $network --initOpt $LSTM_units $CNN_outs $Net_out \
                     --fps $fps --scale $scale --model $exp_folder/trained/endtoend/trained_$epoch.model \
                     --snr 20 10 0 --freq $frqsmp --hop $hop --wlen $wlen --encoder $featextract \
