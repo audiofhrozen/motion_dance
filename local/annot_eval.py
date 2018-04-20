@@ -22,6 +22,19 @@ except Exception as e:
   pass
 from matplotlib import pyplot as plt
 
+def convermp32wav(infile, outfile):
+  folder = os.path.dirname(outfile)
+  if not os.path.exists(folder):
+    os.makedirs(folder)
+  if platform == 'Windows':
+    cmmd = 'ffmpeg -y -i {} -acodec pcm_s16le -ar 16000 -ac 1 {}'.format(infile, outfile)
+    subprocess.Popen(cmmd, shell=False).communicate() 
+  elif platform == 'Linux':
+    os.system('sox {} -c 1 -r 16000 {}'.format(infile, outfile))
+  else:
+    raise TypeError('OS not supported')
+  return
+
 def processMarsyas(filename):
   wav_fn = filename.replace('MOCAP{}HTR'.format(slash), 'AUDIO{}WAVE'.format(slash))
   wav_fn = wav_fn.replace('{}_'.format(args.exp), '')
@@ -31,7 +44,7 @@ def processMarsyas(filename):
     mp3_fn = wav_fn.replace('WAVE', 'MP3')
     mp3_fn = mp3_fn.replace('wav', 'mp3')
     print('Wavefile not found in folder, converting from mp3 file.')
-    os.system('sox {} -c 1 -r 16000 {}'.format(mp3_fn, wav_fn))
+    convermp32wav(mp3_fn, wav_fn)
   os.system('ibt -off -o "beats" {} tmp_marsyas.txt'.format(wav_fn))
   with open('tmp_marsyas.txt') as f:
     beats=f.readlines()
@@ -49,7 +62,7 @@ def processmadmomRNN(proc, filename):
     mp3_fn = wav_fn.replace('WAVE', 'MP3')
     mp3_fn = mp3_fn.replace('wav', 'mp3')
     print('Wavefile not found in folder, converting from mp3 file.')
-    os.system('sox {} -c 1 -r 16000 {}'.format(mp3_fn, wav_fn))
+    convermp32wav(mp3_fn, wav_fn)
   act = beats.RNNBeatProcessor()(wav_fn)
   bpm = proc(act)
   bpm = np.unique(bpm)
@@ -87,11 +100,11 @@ def calculate_precission(arguments):
   # This sequence takes too much time, so it's been parallelized
   # TODO: Need to improve sequence calculate_rom to translations instead of rotations 
   # and change the way to extract the beats from the motion
-  idx, rotations, musicbf, musicb, mp_result = arguments
+  idx, rotations, musicbf, musicb, mp_result, alignframe, fps = arguments
   rots = rotations[idx:]
-  motion_beat_frame = calculate_rom(rots, args.alignframe)
-  motion_beat_frame = extract_beats(musicbf, motion_beat_frame, args.alignframe)
-  align_beat = motion_beat_frame.astype(np.float)/float(args.fps)
+  motion_beat_frame = calculate_rom(rots, alignframe)
+  motion_beat_frame = extract_beats(musicbf, motion_beat_frame, alignframe)
+  align_beat = motion_beat_frame.astype(np.float)/float(fps)
   _, precission, _, _ = be.fMeasure(musicb , align_beat)
   mp_result.append([idx, precission, align_beat])
 
@@ -117,6 +130,9 @@ def main():
       mssfn = fn.replace('MOCAP{}HTR'.format(slash), 'Annotations{}Marsyas_ibt'.format(slash)) 
       mssfn = mssfn.replace('{}_'.format(args.exp), '')
       mssfn = mssfn.replace('.htr', '.txt')
+      mssfolder = os.path.dirname(mssfn)
+      if not os.path.exists(mssfolder):
+        os.makedirs(mssfolder)
       np.savetxt(mssfn,databeats, delimiter='\n', fmt='%.09f')
     marsyas_beat += [databeats]
 
@@ -138,7 +154,7 @@ def main():
     mp_result = manager.list([])
     rotations = motionread(filelist[i], 'htr', 'euler', JOINTS)
     music_beat_frame = np.asarray(music_beat[i]*float(args.fps), dtype=np.int)
-    rotlist = ([x,rotations, music_beat_frame,  music_beat[i], mp_result] for x in range(args.motionrange))
+    rotlist = ([x,rotations, music_beat_frame,  music_beat[i], mp_result, args.alignframe, args.fps] for x in range(args.motionrange))
     pool.map(calculate_precission, rotlist)
     precission =  np.asarray([x[1] for x in mp_result]) 
     max_prec = np.where(precission==np.amax(precission))[0][0]
@@ -240,6 +256,7 @@ if __name__=='__main__':
   manager=mp.Manager()
   pool=mp.Pool(processes=args.workers)
   if platform == 'Windows':
+    import subprocess
     slash='\\'
   elif platform == 'Linux':
     slash='/'

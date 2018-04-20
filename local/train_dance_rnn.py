@@ -75,12 +75,21 @@ def main():
     if chainer.cuda.available:
       chainer.cuda.get_device_from_id(args.gpu).use()
       chainer.config.cudnn_deterministic = False
-      names_gpu = os.popen('lspci | grep NVIDIA | grep controller').read().split('\n')
-      try:
-        _, gpu_name = names_gpu[args.gpu].split('[')
-        gpu_name, _ = gpu_name.split(']')
-      except:
-        gpu_name = ''
+      if platform == 'Windows':
+        import subprocess
+        win_cmd = 'wmic path win32_VideoController get Name | findstr /C:"NVIDIA"'
+        names_gpu  = subprocess.check_output(win_cmd, shell=True).decode("utf-8")
+        gpu_name = names_gpu.split('\r')[0]
+      elif platform =="Linux":
+        import os
+        names_gpu = os.popen('lspci | grep NVIDIA | grep controller').read().split('\n')
+        try:
+          _, gpu_name = names_gpu[args.gpu].split('[')
+          gpu_name, _ = gpu_name.split(']')
+        except:
+          gpu_name = ""
+      else:
+        raise OSError('OS not supported')
       print_info('GPU: {} - {}'.format(args.gpu, gpu_name))
       model.to_gpu()
     else:
