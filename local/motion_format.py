@@ -11,6 +11,7 @@ from numpy import linalg as LA
 from transforms3d.euler import euler2quat, quat2euler
 from utillib.audio import add_noise, single_spectrogram
 from utillib.maths import angle_between
+from utillib.print_utils import print_info, print_error
 try:
   disp=os.environ['DISPLAY']
 except Exception as e:
@@ -230,7 +231,7 @@ def motionread(filename, extension, rottype='euler', joints=None, translation=Fa
     positions = np.concatenate((translations, positions), axis=1)
   return positions
 
-def render_motion(motion, config, Translation=True, scale=1):
+def render_motion(motion, rottype='euler', Translation=True, scale=1):
   num_frames, _ = motion.shape
   if Translation:
     dims = 3
@@ -241,9 +242,9 @@ def render_motion(motion, config, Translation=True, scale=1):
     if i ==0 and Translation:
       axis_motion[:,i*3:(i+1)*3] = scale*motion[:,0:3] 
     for j in range(num_frames):
-      if config['rot']=='euler':
+      if rottype=='euler':
         axis_motion[j,i*3+dims:(i+1)*3+dims] = np.degrees(motion[j,i*3+dims:(i+1)*3+dims]) #rad2deg
-      elif config['rot']=='quat':
+      elif rottype=='quat':
         axis_motion[j,i*3+dims:(i+1)*3+dims] = np.degrees(np.asarray([quat2euler(motion[j,i*4+dims:(i+1)*4+dims])])) 
       else:
         print_error('Incorrect type of rotation')

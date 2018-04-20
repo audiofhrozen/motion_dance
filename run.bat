@@ -2,14 +2,15 @@
 setlocal enableextensions enabledelayedexpansion
 call "path.bat"
 
-set net=s2s
+set net=s2smc
 set rot=quat
 set exp=bounce
-set stage=0
-set feats=CNN
+set stage=3
+set feats=RES
+set init_step=1
 
-set epoch=10
-set batch=50
+set epoch=5
+set batch=10
 set display_log=1000
 set gpu=0
 set workers=4
@@ -25,7 +26,6 @@ set frqsmp=16000
 set silence=10
 set scale=100.0
 set featextract=%feats%Feat 
-set init_step=0
 
 set LSTM_units=500
 set CNN_outs=65
@@ -49,6 +49,7 @@ if %stage% leq -1 (
 )
 
 set trn_lst=%exp_data%\annots\train.lst
+set tst_lst=%exp_data%\annots\test.lst
 
 if %stage% leq 0 ( 
     set steps_folder=%DATA_EXTRACT&%\Annotations\steps
@@ -87,14 +88,14 @@ if %stage% leq 2 (
 if %stage% leq 3 (
     echo Evaluating Network
     ( dir %DATA_EXTRACT%\AUDIO\MP3\*.mp3 /s/b /a-d )>%tst_lst%
-    if not exist %exp_folder%\evaluation mkdir %exp_folder%\evaluation 
-    if not exist %exp_folder%\results mkdir %exp_folder%\results
-    python local/evaluate.py --folder %exp_folder% --list %exp_data%\annots\test_files_align.txt ^
+    if not exist %exp_folder%\evaluation md %exp_folder%\evaluation 
+    if not exist %exp_folder%\results md %exp_folder%\results
+    python local/evaluate.py --folder %exp_folder% --list %exp_data%\annots\train_files_align.txt ^
                 --exp %exp% --rot %rot% --gpu %gpu% ^
                 --network %network% --initOpt %LSTM_units% %CNN_outs% %Net_out% ^
-                --fps %fps% --scale %scale% --model %exp_folder%\trained\endtoend\trained.model ^
+                --fps %fps% --scale %scale% --model %exp_folder%\trained\endtoend\trained_%epoch%.model ^
                 --snr 20 --freq %frqsmp% --hop %hop% --wlen %wlen% --encoder %featextract% ^
-                --stage end2end --alignframe %frame_align%
+                --stage end2end --alignframe %frame_align% --audio_list %tst_lst%
     if %errorlevel% neq 0 exit /b %errorlevel%                
 )
 
