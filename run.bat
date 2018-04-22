@@ -4,10 +4,10 @@ call "path.bat"
 
 set net=s2smc
 set rot=quat
-set exp=bounce
+set exp=bounce2
 set stage=3
-set feats=RES
-set init_step=1
+set feats=CNN
+set init_step=0
 
 set epoch=5
 set batch=10
@@ -91,11 +91,11 @@ if %stage% leq 3 (
     if not exist %exp_folder%\evaluation md %exp_folder%\evaluation 
     if not exist %exp_folder%\results md %exp_folder%\results
     python local/evaluate.py --folder %exp_folder% --list %exp_data%\annots\train_files_align.txt ^
-                --exp %exp% --rot %rot% --gpu %gpu% ^
+                --exp %exp% --rot %rot% --gpu %gpu% --beats_skips 16 ^
                 --network %network% --initOpt %LSTM_units% %CNN_outs% %Net_out% ^
                 --fps %fps% --scale %scale% --model %exp_folder%\trained\endtoend\trained_%epoch%.model ^
                 --snr 20 --freq %frqsmp% --hop %hop% --wlen %wlen% --encoder %featextract% ^
-                --stage end2end --alignframe %frame_align% --audio_list %tst_lst%
+                --stage end2end --alignframe %frame_align% --audio_list %tst_lst% --step_file %exp_data%\annots\train_basic_step.h5
     if %errorlevel% neq 0 exit /b %errorlevel%                
 )
 

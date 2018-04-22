@@ -11,15 +11,12 @@ from chainer import cuda, serializers, Variable
 from motion_format import format_motion_audio, calculate_rom, extract_beats, render_motion, Configuration
 import numpy as np
 import pandas
-from sklearn import (manifold, datasets, decomposition, ensemble,
-                     discriminant_analysis, random_projection, metrics)
-from sklearn.cluster import KMeans
-from sklearn.svm.classes import SVC
+from scipy import signal, stats
 import soundfile
 from time import localtime, strftime
 from utillib.audio import single_spectrogram
 import utillib.BTET.beat_evaluation_toolbox as be
-from utillib.print_utils import print_info
+from utillib.print_utils import print_info, print_warning
 from utillib.audio import add_noise, single_spectrogram
 try:
   disp=os.environ['DISPLAY']
@@ -40,6 +37,7 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
   if not os.path.exists(wavname):
     if platform == 'Windows':
       cmmd = 'ffmpeg -y -i {} -acodec pcm_s16le -ar {} -ac 1 {}'.format(audioname, freq_samp, wavname)
+      print(cmmd)
       subprocess.Popen(cmmd, shell=False).communicate() 
     elif platform == 'Linux':
       os.system('sox {} -c 1 -r {} {}'.format(audioname, freq_samp, wavname))
@@ -60,35 +58,49 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
   stft_data =  (stft_data * slope) + intersec
   return stft_data
 
+def metrics(predicted_motion, music_beat,  motion_beat_idx, dance_step):
+  music_beat_frame = music_beat*args.fps
+  music_beat_frame = music_beat_frame.astype(np.int)
+  # F-Score Eval
+  motion_beat_frame = calculate_rom(predicted_motion[:,3:], args.alignframe)
+  motion_beat_frame = extract_beats(music_beat_frame, motion_beat_frame, args.alignframe)
+  motion_beat = motion_beat_frame.astype(np.float)/float(args.fps)
+  fscore, prec, recall, acc = be.fMeasure(music_beat, motion_beat)
 
-def eval_rom(TIME, NOISE, SNR, TRUE, PREDICT, BEATS, FILE):
-  print_info('Evaluating motion beat')
-  text = '{}\t {}\t noise:{}\t snr:{}\t fscore:{:.02f}\t precission:{:.02f}\t recall:{:.02f}\t acc:{:.02f}\n'
-  rom = ''
-  for i in range(len(TIME)):
-    fn = os.path.basename(FILE[i])
-    fn = fn.split('.')[0]
-    if os.path.exists(NOISE[i]):
-      noise_name = os.path.basename(NOISE[i])
-      noise_name = noise_name.split('.')[0]
-    else:
-      noise_name = NOISE[i]
-    if NOISE[i] == 'Clean':
-      motion_beat_frame = calculate_rom(TRUE[i][:,3:], args.alignframe)
-      motion_beat_frame = extract_beats(BEATS[i]*args.fps, motion_beat_frame, args.alignframe)
-      motion_beat = motion_beat_frame.astype(np.float)/float(args.fps)
-      fs, p, r, a = be.fMeasure(BEATS[i] , motion_beat)
-      np.savetxt('{}/evaluation/{}_{}_true_{}_{}.txt'.format(args.folder, args.stage, fn, noise_name, SNR[i]), motion_beat, fmt='%.09f')
-      rom += text.format(fn, 'true', noise_name, SNR[i], fs, p, r, a)
-    motion_beat_frame = calculate_rom(PREDICT[i][:,3:], args.alignframe)
-    motion_beat_frame = extract_beats(BEATS[i]*args.fps, motion_beat_frame, args.alignframe)
-    motion_beat = motion_beat_frame.astype(np.float)/float(args.fps)
-    fs, p, r, a = be.fMeasure(BEATS[i] , motion_beat)
-    np.savetxt('{}/evaluation/{}_{}_predicted_{}_{}dB.txt'.format(args.folder, args.stage, fn, noise_name, SNR[i]), motion_beat, fmt='%.09f')
-    rom += text.format(fn, 'predicted', noise_name, SNR[i], fs, p, r, a)
-  with open('{}/results/{}_rom.txt'.format(args.folder,args.stage), 'w') as f:
-    f.write(rom)
-  return
+  # Entropy
+  entropy_eval = np.zeros((args.beats_skips))
+  beat_length = motion_beat_idx[0,2]
+
+  ## Entropy w.r.t. the initial dance step & delay 
+  for i in range(0,16):
+    entropy_test = list()
+    for k in range(i,music_beat.shape[0]-beat_length, beat_length):
+      start = music_beat_frame[k]
+      stop = music_beat_frame[k+beat_length]
+      if stop >=predicted_motion.shape[0]:
+        break
+      eval_step = predicted_motion[start:stop]
+      new_lenght = eval_step.shape[0]
+      resample_step = signal.resample(dance_step, new_lenght)
+      entropy_step= stats.entropy(eval_step,resample_step)#*eval_step.shape[1]
+      entropy_step[entropy_step==np.inf]=0
+      entropy_step = np.sum(entropy_step)
+      entropy_test.append(entropy_step)
+    entropy_eval[i] = np.mean(entropy_test)
+
+  best_init_beat = np.argwhere(np.amin(entropy_eval)==entropy_eval)[0,0]
+  best_beat_entropy = entropy_eval[best_init_beat]
+
+  ## Entropy w.r.t. the trained dance step
+  start = music_beat_frame[best_init_beat]
+  stop = music_beat_frame[best_init_beat+beat_length]
+  best_step = predicted_motion[start:stop]
+  new_lenght = best_step.shape[0]
+  resample_step = signal.resample(dance_step, new_lenght)
+  entropy_step = stats.entropy(best_step,resample_step)
+  entropy_step[entropy_step==np.inf]=0
+  best_step_entropy = np.sum(entropy_step)
+  return fscore, prec, recall, acc, best_init_beat, best_beat_entropy, best_step_entropy  
 
 
 def main():
@@ -118,6 +130,9 @@ def main():
     if not istrained:
       untrain_list.append(audio_list[i])
 
+  with h5py.File(args.step_file) as F:
+    motion_beat_idx = np.array(F['location'], copy=True)
+    dance_step = np.array(F['dance_step'], copy=True)
   print_info('Evaluation training...')   
   print_info('Loading model definition from {}'.format(args.network))
   print_info('Using gpu {}'.format(args.gpu))
@@ -144,70 +159,97 @@ def main():
   if not os.path.exists(config['out_folder']):
     os.makedirs(config['out_folder'])
 
-  print_info('Evaluating model for trained audio files')
-  for j in range(len(trained_list)):
-    mbfile = trained_list[j].replace('MOCAP{}HTR'.format(slash), 'Annotations{}corrected'.format(slash))
-    mbfile = mbfile.replace('{}_'.format(args.exp), '')
-    mbfile = mbfile.replace('.htr', '.txt')
-    mbfile = mbfile.replace('test_', '')
-    music_beat = np.unique(np.loadtxt(mbfile))
-    for noise in list_noises:
-      if noise == 'Clean':
-        list_snr = [None]
+  for i in range(2):
+    if i==0:
+      stage='trained'
+      filelist = trained_list
+    else:
+      stage='untrained'
+      filelist = untrain_list
+    print_info('Evaluating model for {} audio files'.format(stage))
+    results = dict()
+    results_keys = ['filename', 'noise' , 'snr' , 'fscore', 'precission', 'recall','acc','forward_time', 'init_beat', 'entropy_beat', 'entropy_step' ]
+    for key in results_keys:
+      results[key] = list()
+    for j in range(len(filelist)):
+      if i==0:
+        mbfile = filelist[j].replace('MOCAP{}HTR'.format(slash), 'Annotations{}corrected'.format(slash))
+        mbfile = mbfile.replace('{}_'.format(args.exp), '')
+        mbfile = mbfile.replace('.htr', '.txt')
       else:
-        list_snr = snr_lst
-      noise_mp3= noise.replace('WAVE/', '')
-      noise_mp3= noise_mp3.replace('.wav', '.mp3')
-      if os.path.exists(noise_mp3):
-        if not os.path.exists(noise):
-          print_warning('Wavefile not found in folder, converting from mp3 file.')
-          if platform == 'Windows':
-            cmmd = 'ffmpeg -y -i {} -acodec pcm_s16le -ar {} -ac 1 {}'.format(noise_mp3, args.freq, noise)
-            subprocess.Popen(cmmd, shell=False).communicate() 
-          elif platform == 'Linux':
-            os.system('sox {} -c 1 -r {} {}'.format(noise_mp3, args.freq, noise))
+        mbfile = filelist[j].replace('AUDIO{}MP3'.format(slash), 'Annotations{}corrected'.format(slash))    
+        mbfile = mbfile.replace('.mp3', '.txt')
+      print(mbfile)
+      music_beat = np.unique(np.loadtxt(mbfile))
+
+      filename = os.path.basename(mbfile).split('.')[0]
+
+      for noise in list_noises:
+        if noise == 'Clean':
+          list_snr = [None]
+        else:
+          list_snr = snr_lst
+        noise_mp3= noise.replace('WAVE{}'.format(slash), '')
+        noise_mp3= noise_mp3.replace('.wav', '.mp3')
+        noise_name = noise
+        if os.path.exists(noise_mp3):
+          noise_name = os.path.basename(noise_mp3).split('.')[0]
+          if not os.path.exists(noise):
+            print_warning('Wavefile not found in folder, converting from mp3 file.')
+            if platform == 'Windows':
+              cmmd = 'ffmpeg -y -i {} -acodec pcm_s16le -ar {} -ac 1 {}'.format(noise_mp3, args.freq, noise)
+              subprocess.Popen(cmmd, shell=False).communicate() 
+            elif platform == 'Linux':
+              os.system('sox {} -c 1 -r {} {}'.format(noise_mp3, args.freq, noise))
+            else:
+              raise TypeError('OS not supported')
+        for snr in list_snr:
+          if i==0:
+            audiofile = filelist[j].replace('MOCAP{}HTR'.format(slash), 'AUDIO{}MP3'.format(slash))
+            audiofile = audiofile.replace('{}_'.format(args.exp), '')
+            audiofile = audiofile.replace('.htr', '.mp3')
           else:
-            raise TypeError('OS not supported')
-      for snr in list_snr:
-        audiofile = trained_list[j].replace('MOCAP{}HTR'.format(slash), 'AUDIO{}WAVE'.format(slash))
-        audiofile = audiofile.replace('{}_'.format(args.exp), '')
-        audiofile = audiofile.replace('.htr', '.wav')
-        audio = format_audio(audiofile, noise, snr, args.freq, config['rng_wav'])
-        predicted_motion = np.zeros((audio.shape[0]-1, args.initOpt[2]), dtype=np.float32)
-        feats = np.zeros((audio.shape[0]-1, args.initOpt[1]), dtype=np.float32)
-        start = timeit.default_timer()
-        state = model.state
-        current_step=Variable(xp.asarray(np.zeros((1, args.initOpt[2]), dtype=np.float32)))
-        with chainer.no_backprop_mode(), chainer.using_config('train', False):
-          for k in range(audio.shape[0]-1):
-            audiofeat = model.audiofeat(Variable(xp.asarray(audio[k:k+1])))
-            rnnAudio, state, out_step= model.forward(state, current_step, audiofeat, True)
-            predicted_motion[k] = chainer.cuda.to_cpu(out_step.data)
-            feats[k] = chainer.cuda.to_cpu(rnnAudio.data)
-            current_step = out_step
-        time = timeit.default_timer() - start
-        predicted_motion = (predicted_motion - config['intersec_pos'])/config['slope_pos']
-        predicted_motion = render_motion(predicted_motion, args.rot, scale=args.scale)
-        print(predicted_motion.shape)
-        # F-Score Eval
-        motion_beat_frame = calculate_rom(predicted_motion[:,3:], args.alignframe)
-        motion_beat_frame = extract_beats(music_beat*args.fps, motion_beat_frame, args.alignframe)
-        motion_beat = motion_beat_frame.astype(np.float)/float(args.fps)
-        fs, p, r, a = be.fMeasure(music_beat, motion_beat)
-        print(time, fs, p, r, a)
-        exit()
-        rst_time += [time]
-        rst_noise += [noise]
-        rst_snr += [snr]
-        rst_true += [true_motion]
-        rst_predict += [predicted_motion]
+            audiofile = filelist[j]
+          audio = format_audio(audiofile, noise, snr, args.freq, config['rng_wav'])
+          predicted_motion = np.zeros((audio.shape[0], args.initOpt[2]), dtype=np.float32)
+          feats = np.zeros((audio.shape[0]-1, args.initOpt[1]), dtype=np.float32)
+          start = timeit.default_timer()
+          state = model.state
+          current_step=Variable(xp.asarray(np.zeros((1, args.initOpt[2]), dtype=np.float32)))
+          with chainer.no_backprop_mode(), chainer.using_config('train', False):
+            for k in range(audio.shape[0]-1):
+              audiofeat = model.audiofeat(Variable(xp.asarray(audio[k:k+1])))
+              rnnAudio, state, out_step= model.forward(state, current_step, audiofeat, True)
+              predicted_motion[k+1] = chainer.cuda.to_cpu(out_step.data)
+              feats[k] = chainer.cuda.to_cpu(rnnAudio.data)
+              current_step = out_step
+          time = timeit.default_timer() - start
+          predicted_motion = (predicted_motion - config['intersec_pos'])/config['slope_pos']
+          predicted_motion = render_motion(predicted_motion, args.rot, scale=args.scale)
 
-        filename += [fileslist[j]]
-        rst_feats +=[feats]
+          #Evaluations
+          fscore, prec, recall, acc, best_init_beat, best_beat_entropy, best_step_entropy = metrics(predicted_motion, music_beat, motion_beat_idx, dance_step)
 
-  print_info('Evaluating model for untrained audio files')
-  # Here list all evalutions definitions
-  eval_rom(rst_time, rst_noise, rst_snr, rst_true, rst_predict, beat_music, filename)
+          results['filename'].append(filename)
+          results['noise'].append(noise_name)
+          results['snr'].append(str(snr))
+          results['fscore'].append(fscore)
+          results['precission'].append(prec)
+          results['recall'].append(recall)
+          results['acc'].append(acc)
+          results['forward_time'].append(time)
+          results['init_beat'].append(best_init_beat)
+          results['entropy_beat'].append(best_beat_entropy)
+          results['entropy_step'].append(best_step_entropy)
+          
+          # Save extra data
+          with h5py.File('{1}{0}evaluation{0}{2}_{6}_{3}_{4}_{5}_output.h5'.format(slash, args.folder, args.stage, filename, noise_name, str(snr), stage), 'w') as f:
+            ds = f.create_dataset('motion', data=predicted_motion)
+            ds = f.create_dataset('audiofeats', data=feats)
+
+    df = pandas.DataFrame(results, columns = results_keys)
+    df.to_csv('{0}{1}results{1}{2}_{3}_results.csv'.format(args.folder, slash, args.stage, stage), encoding='utf-8')
+
   return
 
 if __name__ == '__main__':
@@ -230,9 +272,9 @@ if __name__ == '__main__':
   parser.add_argument('--stage', '-S', type=str, help='Evaluation stage')
   parser.add_argument('--rot', '-t', type=str, help='Rotation type')
   parser.add_argument('--wlen', '-w', type=int, help='STFT Window size', default=0)
-  parser.add_argument('--plot', type=int, help='Plot PCAs', default=0)
-  parser.add_argument('--videos', type=int, help='Prepare video of PCAs', default=0)
   parser.add_argument('--audio_list', type=str, help='List Files used for training')
+  parser.add_argument('--step_file', type=str, help='File with dance steps')
+  parser.add_argument('--beats_skips', type=int, help='Maximum value of music beats skipped for a dance step', default=0)
   args = parser.parse_args()
   config = Configuration(args)
   colorama.init()
@@ -249,6 +291,7 @@ if __name__ == '__main__':
       '{0}{1}AUDIO{1}WAVE{1}NOISE{1}claps.wav'.format(DATA_FOLDER, slash), \
       '{0}{1}AUDIO{1}WAVE{1}NOISE{1}crowd.wav'.format(DATA_FOLDER, slash)]
   audio_list=glob.glob('{0}{1}AUDIO{1}MP3{1}*.mp3'.format(DATA_FOLDER, slash)) 
+  list_noises = ['Clean']
   snr_lst = args.snr
   chainer.cuda.get_device_from_id(args.gpu).use()
   xp = cuda.cupy
