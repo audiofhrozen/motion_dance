@@ -8,7 +8,7 @@ warnings.filterwarnings('ignore')
 import glob, os, h5py, imp, six, argparse, timeit, platform, colorama
 import chainer
 from chainer import cuda, serializers, Variable
-from motion_format import format_motion_audio, calculate_rom, extract_beats, render_motion, Configuration
+from motion_format import calculate_rom, extract_beats, render_motion, Configuration
 import numpy as np
 import pandas
 from scipy import signal, stats
@@ -36,7 +36,7 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
   wavname = wavname.replace('.mp3', '.wav')
   if not os.path.exists(wavname):
     if platform == 'Windows':
-      cmmd = 'ffmpeg -y -i {} -acodec pcm_s16le -ar {} -ac 1 {}'.format(audioname, freq_samp, wavname)
+      cmmd = 'ffmpeg -loglevel panic -y -i {} -acodec pcm_s16le -ar {} -ac 1 {}'.format(audioname, freq_samp, wavname)
       print(cmmd)
       subprocess.Popen(cmmd, shell=False).communicate() 
     elif platform == 'Linux':
@@ -61,6 +61,8 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
 def metrics(predicted_motion, music_beat,  motion_beat_idx, dance_step):
   music_beat_frame = music_beat*args.fps
   music_beat_frame = music_beat_frame.astype(np.int)
+
+  # TODO: Change evaluation to position rather than rotations
   # F-Score Eval
   motion_beat_frame = calculate_rom(predicted_motion[:,3:], args.alignframe)
   motion_beat_frame = extract_beats(music_beat_frame, motion_beat_frame, args.alignframe)
@@ -82,7 +84,7 @@ def metrics(predicted_motion, music_beat,  motion_beat_idx, dance_step):
       eval_step = predicted_motion[start:stop]
       new_lenght = eval_step.shape[0]
       resample_step = signal.resample(dance_step, new_lenght)
-      entropy_step= stats.entropy(eval_step,resample_step)#*eval_step.shape[1]
+      entropy_step= stats.entropy(eval_step,resample_step) #*eval_step.shape[1]
       entropy_step[entropy_step==np.inf]=0
       entropy_step = np.sum(entropy_step)
       entropy_test.append(entropy_step)
@@ -138,19 +140,19 @@ def main():
   print_info('Using gpu {}'.format(args.gpu))
 
   net = imp.load_source('Network', args.network) 
-  audionet = imp.load_source('Network', './models/audio_nets.py')
+  audionet = imp.load_source('Network', os.path.join('models', 'audio_nets.py'))
   model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
   serializers.load_hdf5(args.model, model)
   print_info('Loading pretrained model from {}'.format(args.model))
   model.to_gpu()
 
-  minmaxfile = './exp/data/{}_{}/minmax/pos_minmax.h5'.format(args.exp, args.rot)
+  minmaxfile = os.path.join('exp', 'data', '{}_{}'.format(args.exp, args.rot), 'minmax', 'pos_minmax.h5')
   with h5py.File(minmaxfile, 'r') as f:
     pos_min = f['minmax'][0:1,:]
     pos_max = f['minmax'][1:2,:] 
 
 
-  config['out_folder']= '{}/evaluation'.format(args.folder)
+  config['out_folder']= os.path.join(args.folder, 'evaluation')
   div = (pos_max-pos_min)
   div[div==0] = 1
   config['slope_pos'] = (config['rng_pos'][1] - config['rng_pos'][0] )/ div
@@ -166,6 +168,7 @@ def main():
     else:
       stage='untrained'
       filelist = untrain_list
+      exit()
     print_info('Evaluating model for {} audio files'.format(stage))
     results = dict()
     results_keys = ['filename', 'noise' , 'snr' , 'fscore', 'precission', 'recall','acc','forward_time', 'init_beat', 'entropy_beat', 'entropy_step' ]
@@ -173,15 +176,14 @@ def main():
       results[key] = list()
     for j in range(len(filelist)):
       if i==0:
-        mbfile = filelist[j].replace('MOCAP{}HTR'.format(slash), 'Annotations{}corrected'.format(slash))
+        mbfile = filelist[j].replace(os.path.join('MOCAP', 'HTR'), os.path.join('Annotations', 'corrected'))
         mbfile = mbfile.replace('{}_'.format(args.exp), '')
         mbfile = mbfile.replace('.htr', '.txt')
       else:
-        mbfile = filelist[j].replace('AUDIO{}MP3'.format(slash), 'Annotations{}corrected'.format(slash))    
+        mbfile = filelist[j].replace(os.path.join('AUDIO', 'MP3'), os.path.join('Annotations', 'corrected'))    
         mbfile = mbfile.replace('.mp3', '.txt')
       print(mbfile)
       music_beat = np.unique(np.loadtxt(mbfile))
-
       filename = os.path.basename(mbfile).split('.')[0]
 
       for noise in list_noises:
@@ -189,15 +191,18 @@ def main():
           list_snr = [None]
         else:
           list_snr = snr_lst
-        noise_mp3= noise.replace('WAVE{}'.format(slash), '')
+        noise_mp3= noise.replace(os.path.join('WAVE', ''), '')
         noise_mp3= noise_mp3.replace('.wav', '.mp3')
         noise_name = noise
         if os.path.exists(noise_mp3):
           noise_name = os.path.basename(noise_mp3).split('.')[0]
           if not os.path.exists(noise):
             print_warning('Wavefile not found in folder, converting from mp3 file.')
+            noise_dir = os.path.dirname(noise)
+            if not os.path.exists(noise_dir):
+              os.makedirs(noise_dir)
             if platform == 'Windows':
-              cmmd = 'ffmpeg -y -i {} -acodec pcm_s16le -ar {} -ac 1 {}'.format(noise_mp3, args.freq, noise)
+              cmmd = 'ffmpeg -loglevel panic -y -i {} -acodec pcm_s16le -ar {} -ac 1 {}'.format(noise_mp3, args.freq, noise)
               subprocess.Popen(cmmd, shell=False).communicate() 
             elif platform == 'Linux':
               os.system('sox {} -c 1 -r {} {}'.format(noise_mp3, args.freq, noise))
@@ -205,7 +210,7 @@ def main():
               raise TypeError('OS not supported')
         for snr in list_snr:
           if i==0:
-            audiofile = filelist[j].replace('MOCAP{}HTR'.format(slash), 'AUDIO{}MP3'.format(slash))
+            audiofile = filelist[j].replace(os.path.join('MOCAP', 'HTR'), os.path.join('AUDIO', 'MP3'))
             audiofile = audiofile.replace('{}_'.format(args.exp), '')
             audiofile = audiofile.replace('.htr', '.mp3')
           else:
@@ -227,9 +232,8 @@ def main():
           predicted_motion = (predicted_motion - config['intersec_pos'])/config['slope_pos']
           predicted_motion = render_motion(predicted_motion, args.rot, scale=args.scale)
 
-          #Evaluations
+          # Evaluations
           fscore, prec, recall, acc, best_init_beat, best_beat_entropy, best_step_entropy = metrics(predicted_motion, music_beat, motion_beat_idx, dance_step)
-
           results['filename'].append(filename)
           results['noise'].append(noise_name)
           results['snr'].append(str(snr))
@@ -243,12 +247,17 @@ def main():
           results['entropy_step'].append(best_step_entropy)
           
           # Save extra data
-          with h5py.File('{1}{0}evaluation{0}{2}_{6}_{3}_{4}_{5}_output.h5'.format(slash, args.folder, args.stage, filename, noise_name, str(snr), stage), 'w') as f:
+          save_file = os.path.join(args.folder, 'evaluation', '{}_{}_{}_{}_{}_output.h5'.format(args.stage, stage, filename, noise_name, str(snr)))
+          if os.path.exists(save_file):
+            os.remove(save_file)
+          with h5py.File(save_file, 'w') as f:
             ds = f.create_dataset('motion', data=predicted_motion)
             ds = f.create_dataset('audiofeats', data=feats)
 
+    # Save evaluations results
     df = pandas.DataFrame(results, columns = results_keys)
-    df.to_csv('{0}{1}results{1}{2}_{3}_results.csv'.format(args.folder, slash, args.stage, stage), encoding='utf-8')
+    result_file = os.path.join(args.folder, 'results', '{}_{}_results.csv'.format(args.stage, stage))
+    df.to_csv(result_file, encoding='utf-8')
 
   return
 
@@ -281,17 +290,15 @@ if __name__ == '__main__':
   platform = platform.system()
   if platform == 'Windows':
     import subprocess
-    slash='\\'
   elif platform == 'Linux':
-    slash='/'
+    pass
   else:
     raise OSError('OS not supported')  
   DATA_FOLDER=os.environ['DATA_EXTRACT']
   list_noises = ['Clean', 'white', \
-      '{0}{1}AUDIO{1}WAVE{1}NOISE{1}claps.wav'.format(DATA_FOLDER, slash), \
-      '{0}{1}AUDIO{1}WAVE{1}NOISE{1}crowd.wav'.format(DATA_FOLDER, slash)]
-  audio_list=glob.glob('{0}{1}AUDIO{1}MP3{1}*.mp3'.format(DATA_FOLDER, slash)) 
-  list_noises = ['Clean']
+      os.path.join(DATA_FOLDER, 'AUDIO', 'WAVE', 'NOISE', 'claps.wav'), \
+      os.path.join(DATA_FOLDER, 'AUDIO', 'WAVE', 'NOISE', 'crowd.wav') ]
+  audio_list=glob.glob(os.path.join(DATA_FOLDER, 'AUDIO', 'MP3','*.mp3')) 
   snr_lst = args.snr
   chainer.cuda.get_device_from_id(args.gpu).use()
   xp = cuda.cupy
