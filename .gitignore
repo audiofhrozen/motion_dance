@@ -1,0 +1,16 @@
+*~
+*.pyc
+\#*\#
+.\#*
+*.ipy*
+
+*DS_Store
+
+exp
+data
+test*
+*.png
+*.txt
+local/utillib
+local/pca*
+local/untrained*
