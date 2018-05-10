@@ -14,3 +14,4 @@ test*
 local/utillib
 local/pca*
 local/untrained*
+local/fit_ellipse*

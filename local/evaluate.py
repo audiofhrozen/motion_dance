@@ -234,6 +234,7 @@ def main():
 
           # Evaluations
           fscore, prec, recall, acc, best_init_beat, best_beat_entropy, best_step_entropy = metrics(predicted_motion, music_beat, motion_beat_idx, dance_step)
+          results['filename'].append(filename) #TODO: Separation by genre
           results['filename'].append(filename)
           results['noise'].append(noise_name)
           results['snr'].append(str(snr))
