@@ -117,20 +117,21 @@ def main():
     trained_list += [_file]
     trained_align += [_align]
 
-  with open(args.audio_list) as f:
-    audio_list = f.readlines()
-    audio_list = [ x.split('\n')[0] for x in audio_list ]
-  untrain_list = []
+  if args.untrained == 1:
+    with open(args.audio_list) as f:
+      audio_list = f.readlines()
+      audio_list = [ x.split('\n')[0] for x in audio_list ]
+    untrain_list = []
 
-  for i in range(len(audio_list)):
-    audioname = os.path.basename(audio_list[i]).split('.')[0]
-    istrained = False
-    for j in trained_list:
-      if audioname in j:
-        istrained = True
-        break
-    if not istrained:
-      untrain_list.append(audio_list[i])
+    for i in range(len(audio_list)):
+      audioname = os.path.basename(audio_list[i]).split('.')[0]
+      istrained = False
+      for j in trained_list:
+        if audioname in j:
+          istrained = True
+          break
+      if not istrained:
+        untrain_list.append(audio_list[i])
 
   with h5py.File(args.step_file) as F:
     motion_beat_idx = np.array(F['location'], copy=True)
@@ -166,9 +167,12 @@ def main():
       stage='trained'
       filelist = trained_list
     else:
+      if args.untrained == 0:
+        print('Only trained data. Exit')
+        exit()
       stage='untrained'
       filelist = untrain_list
-      exit()
+      
     print_info('Evaluating model for {} audio files'.format(stage))
     results = dict()
     results_keys = ['filename', 'noise' , 'snr' , 'fscore', 'precission', 'recall','acc','forward_time', 'init_beat', 'entropy_beat', 'entropy_step' ]
@@ -285,6 +289,7 @@ if __name__ == '__main__':
   parser.add_argument('--audio_list', type=str, help='List Files used for training')
   parser.add_argument('--step_file', type=str, help='File with dance steps')
   parser.add_argument('--beats_skips', type=int, help='Maximum value of music beats skipped for a dance step', default=0)
+  parser.add_argument('--untrained', type=int, help='Do untrained data if 1', default=0)
   args = parser.parse_args()
   config = Configuration(args)
   colorama.init()
