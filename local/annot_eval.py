@@ -141,7 +141,7 @@ def main():
         fn = filelist[i]
         databeats = readfromfile(fn, os.path.join('Annotations', 'corrected'))
         if databeats is None:
-            raise ValueError('No music beat annotations found for exp {},'
+            raise ValueError('No music beat annotations found for exp {}, '
                              'prepare first the beat annotations.'.format(args.exp))
         music_beat += [databeats]
 
@@ -214,16 +214,15 @@ def main():
                     entropy_test[entropy_test == np.inf] = 0
                     entropy_eval[i, beat_start, beat_length] = np.mean(entropy_test)
 
-        best_beat = np.argwhere(np.amin(entropy_eval) == entropy_eval)[0]
-        i = best_beat[0]
-        start = music_beat_frame[best_beat[1]]
-        stop = music_beat_frame[best_beat[1] + best_beat[2]]
+        best_beat = np.argwhere(np.amin(entropy_eval) == entropy_eval)
+        i = best_beat[0, 0]
+        start = music_beat_frame[best_beat[0, 1]]
+        stop = music_beat_frame[best_beat[0, 1] + best_beat[0, 2]]
         rotations = motionread(filelist[i], 'htr', 'euler', JOINTS, True)
         aligned_motion = rotations[align_idx[i]:, ]
         basic_step = aligned_motion[start:stop]
         savefile = os.path.join(args.output, '{}_basic_step.h5'.format(args.stage))
         with h5py.File(savefile, 'w') as F:
-            F.create_dataset('entropy', data=entropy_eval[best_beat])
             F.create_dataset('filename', data=filelist[i])
             F.create_dataset('location', data=best_beat)
             F.create_dataset('dance_step', data=basic_step)
