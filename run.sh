@@ -22,6 +22,7 @@ sequence=150
 init_step=0
 feats="CNN"
 dance_steps=1
+untrained=1
 while test $# -gt 0
 do
     case "$1" in
@@ -59,11 +60,11 @@ hop=80
 frqsmp=16000
 silence=10
 scale=100.0
-featextract="$feats"Feat 
+featextract=${feats}Feat 
 
 LSTM_units=500
 CNN_outs=65
-network="./models/net_$net.py"
+network="./models/net_${net}.py"
 
 if [ rot=='quat' ]; then
   Net_out=71
@@ -75,7 +76,7 @@ echo "============================================================"
 echo "                        DeepDancer"
 echo "============================================================"
 
-exp_name="$net"_"$rot"_"$feats"_initstep_"$init_step"
+exp_name=${net}_${rot}_${feats}_initstep_${init_step}
 exp_folder=./exp/"$exp"/$exp_name
 exp_data=./exp/data/"$exp"_"$rot"
 
@@ -120,13 +121,13 @@ fi
 if [ $stage -le 3 ]; then
   echo "Evaluating Network"
   find $DATA_EXTRACT/AUDIO/MP3 -name '*.mp3' | sort -u > $tst_lst
-  mkdir -p $exp_folder/evaluation $exp_folder/results $exp_folder/untrained $exp_folder/images
+  mkdir -p $exp_folder/evaluation $exp_folder/results ${exp_folder}/untrained $exp_folder/images
   local/evaluate.py --folder $exp_folder --list $exp_data/annots/train_files_align.txt \
                     --exp $exp --rot $rot --gpu $gpu --audio_list $tst_lst \
                     --network $network --initOpt $LSTM_units $CNN_outs $Net_out \
                     --fps $fps --scale $scale --model $exp_folder/trained/endtoend/trained_$epoch.model \
                     --snr 20 10 0 --freq $frqsmp --hop $hop --wlen $wlen --encoder $featextract \
-                    --stage "end2end" --alignframe $frame_align || exit 1
+                    --stage "end2end" --alignframe $frame_align --untrained ${untrained} || exit 1
 fi
 
 echo "`basename $0` Done."
