@@ -41,7 +41,7 @@ def convermp32wav(infile, outfile):
     if not os.path.exists(folder):
         os.makedirs(folder)
     if platform == 'Windows':
-        cmmd = 'ffmpeg -y -i {} -acodec pcm_s16le -ar 16000 -ac 1 {}'.format(infile, outfile)
+        cmmd = 'ffmpeg -loglevel panic -y -i {} -acodec pcm_s16le -ar 16000 -ac 1 {}'.format(infile, outfile)
         subprocess.Popen(cmmd, shell=False).communicate()
     elif platform == 'Linux':
         os.system('sox {} -c 1 -r 16000 {}'.format(infile, outfile))
