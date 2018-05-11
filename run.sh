@@ -138,10 +138,10 @@ if [ ${stage} -le 2 ]; then
                         --workers ${workers} \
                         --save ${exp_folder}/trained/endtoend \
                         --network ${network} \
-                        --encoder ${featextract} 
+                        --encoder ${featextract} \
                         --dataset "DanceSeqHDF5" \
                         --init_step ${init_step} \
-                        --initOpt ${LSTM_unit}s ${CNN_outs} ${Net_out} \
+                        --initOpt ${LSTM_unit} ${CNN_outs} ${Net_out} \
                         --frequency 5 || exit 1
 fi
 
