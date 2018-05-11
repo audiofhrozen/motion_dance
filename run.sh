@@ -141,7 +141,7 @@ if [ ${stage} -le 2 ]; then
                         --encoder ${featextract} \
                         --dataset "DanceSeqHDF5" \
                         --init_step ${init_step} \
-                        --initOpt ${LSTM_unit} ${CNN_outs} ${Net_out} \
+                        --initOpt ${LSTM_units} ${CNN_outs} ${Net_out} \
                         --frequency 5 || exit 1
 fi
 
