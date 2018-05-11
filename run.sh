@@ -152,6 +152,7 @@ if [ ${stage} -le 3 ]; then
   local/evaluate.py --folder ${exp_folder} \
                     --list ${exp_data}/annots/train_files_align.txt \
                     --beats_skips 16 \
+                    --epoch ${epoch} \
                     --exp ${exp} \
                     --rot ${rot} \
                     --gpu ${gpu} \

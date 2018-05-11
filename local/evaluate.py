@@ -252,7 +252,8 @@ def main():
                     results['entropy_step'].append(best_step_entropy)
                   
                     # Save extra data
-                    save_file = os.path.join(args.folder, 'evaluation', '{}_{}_{}_{}_{}_output.h5'.format(args.stage, stage, filename, noise_name, str(snr)))
+                    save_file = os.path.join(args.folder, 'evaluation',
+                                             '{}_{}_{}_{}_{}_{}_output.h5'.format(args.stage, stage, filename, noise_name, str(snr), args.epoch))
                     if os.path.exists(save_file):
                         os.remove(save_file)
                     with h5py.File(save_file, 'w') as f:
@@ -261,7 +262,7 @@ def main():
 
             # Save evaluations results
             df = pandas.DataFrame(results, columns = results_keys)
-            result_file = os.path.join(args.folder, 'results', '{}_{}_results.csv'.format(args.stage, stage))
+            result_file = os.path.join(args.folder, 'results', 'result_{}_{}_epoch_{}.csv'.format(args.stage, stage, args.epoch))
             df.to_csv(result_file, encoding='utf-8')
 
     return
@@ -270,6 +271,7 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Evaluation Motion')
   parser.add_argument('--alignframe', '-a', type=int, help='Frames allowed to align', default=0)
   parser.add_argument('--silence', '-c', type=int, help='List of SNR', default=0)
+  parser.add_argument('--epoch', type=int, help='Trained epochs', default=0)
   parser.add_argument('--folder', '-d', type=str, help='Specify network folder')
   parser.add_argument('--exp', '-e', type=str, help='Experiment type')
   parser.add_argument('--encoder', '-E', type=str, help='Encoder type')
