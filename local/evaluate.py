@@ -32,7 +32,7 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
     audio_min = -120.
     slope = (config['rng_wav'][1] - config['rng_wav'][0]) / (audio_max - audio_min)
     intersec = config['rng_wav'][1] - slope * audio_max
-        wavname = audioname.replace('MP3', 'WAVE')
+    wavname = audioname.replace('MP3', 'WAVE')
     wavname = wavname.replace('.mp3', '.wav')
 
     if not os.path.exists(wavname):
