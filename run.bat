@@ -4,8 +4,8 @@ call "path.bat"
 
 set net=s2smc
 set rot=quat
-set exp=choreo1
-set stage=0
+set exp=bounce2
+set stage=3
 set feats=CNN
 set init_step=0
 
@@ -90,7 +90,7 @@ if %stage% leq 1 (
     if %errorlevel% neq 0 exit /b %errorlevel%
     rem TODO: Add preparation for testing/validation during training (Need Larger dataset or to split in parts the whole sequence)
 )
-goto :eof
+
 if %stage% leq 2 (
     echo Training Network
     python local/train_dance_rnn.py --folder %exp_data%\data ^
@@ -138,7 +138,7 @@ if %stage% leq 3 (
                             --untrained %untrained%
     if %errorlevel% neq 0 exit /b %errorlevel%                
 )
+
 :eof
 echo %~nx0 Done.
-
 endlocal

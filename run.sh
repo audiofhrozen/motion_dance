@@ -151,6 +151,7 @@ if [ ${stage} -le 3 ]; then
   mkdir -p ${exp_folder}/evaluation ${exp_folder}/results ${exp_folder}/untrained ${exp_folder}/images
   local/evaluate.py --folder ${exp_folder} \
                     --list ${exp_data}/annots/train_files_align.txt \
+                    --beats_skips 16 \
                     --exp ${exp} \
                     --rot ${rot} \
                     --gpu ${gpu} \
@@ -163,7 +164,8 @@ if [ ${stage} -le 3 ]; then
                     --snr 20 10 0 \
                     --freq ${frqsmp} \
                     --hop ${hop} \
-                    --wlen ${wlen} --encoder ${featextract} \
+                    --wlen ${wlen} \
+                    --encoder ${featextract} \
                     --stage "end2end" \
                     --alignframe ${frame_align} \
                     --step_file ${exp_data}/annots/train_basic_step.h5 \
