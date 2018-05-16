@@ -9,7 +9,7 @@
 exp
 data
 test*
-*.png
+ellipse*
 *.txt
 local/utillib
 local/__pycache__
