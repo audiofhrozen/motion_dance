@@ -4,11 +4,11 @@ Generating dance using deep learning techniques.
 
 The proposed model is shown in the following image:
 
-![Proposed Model](images/seq2seq_mc.png?raw=true "Title")
+![Proposed Model](images/seq2seq_mc.png?style=centerme?raw=true "Title")
 
 The joints of the skeleton employed in the experiment are shown in the following image:
 
-![Skeleton](images/skeleton.png?raw=true "Title")
+![Skeleton](images/skeleton.pn?style=centermeg?raw=true "Title")
 
 ### Use of GPU
 If you use GPU in your experiment, set `--gpu` option in `run.sh` appropriately, e.g., 
