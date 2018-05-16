@@ -8,7 +8,7 @@ The proposed model is shown in the following image:
 
 The joints of the skeleton employed in the experiment are shown in the following image:
 
-![Skeleton](images/skeleton.pn?style=centermeg?raw=true "Title")
+![Skeleton](images/skeleton.png?style=centerme?raw=true "Title")
 
 ### Use of GPU
 If you use GPU in your experiment, set `--gpu` option in `run.sh` appropriately, e.g., 
