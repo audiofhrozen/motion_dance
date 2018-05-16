@@ -92,7 +92,7 @@ trn_lst=${exp_data}/annots/train.lst
 tst_lst=${exp_data}/annots/test.lst
 if [ ${stage} -le 0 ]; then 
   mkdir -p ${exp_data}/annots 
-  find ${DATA_EXTRAC}T/MOCAP/HTR/ -name ${exp}'_*.htr' | sort -u > ${trn_lst}
+  find ${DATA_EXTRACT}/MOCAP/HTR/ -name ${exp}'_*.htr' | sort -u > ${trn_lst}
   steps_folder=${DATA_EXTRACT}/Annotations/steps
 
   echo "----- Preparing training annotations..."
