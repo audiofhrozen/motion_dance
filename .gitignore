@@ -12,8 +12,6 @@ test*
 *.png
 *.txt
 local/utillib
-local/pca*
-local/untrained*
-local/fit_ellipse*
 local/__pycache__
 local/.ipynb_checkpoints
+local/do*
