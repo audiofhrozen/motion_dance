@@ -148,7 +148,7 @@ fi
 if [ ${stage} -le 3 ]; then
   echo "Evaluating Network"
   find ${DATA_EXTRACT}/AUDIO/MP3 -name '*.mp3' | sort -u > ${tst_lst}
-  mkdir -p ${exp_folder}/evaluation ${exp_folder}/results ${exp_folder}/untrained ${exp_folder}/images
+  mkdir -p ${exp_folder}/evaluation ${exp_folder}/results
   local/evaluate.py --folder ${exp_folder} \
                     --list ${exp_data}/annots/train_files_align.txt \
                     --beats_skips 16 \
