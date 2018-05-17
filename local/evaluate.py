@@ -355,6 +355,7 @@ if __name__ == '__main__':
     snr_lst = args.snr
     chainer.cuda.get_device_from_id(args.gpu).use()
     xp = cuda.cupy
+    format = '%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s'
     if args.verbose < 1:
         logging.basicConfig(
             level=logging.WARN, format=format)
