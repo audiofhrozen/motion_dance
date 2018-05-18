@@ -163,6 +163,9 @@ def main():
             mdmfn = fn.replace(os.path.join('MOCAP', 'HTR'), os.path.join('Annotations', 'madmom'))
             mdmfn = mdmfn.replace('{}_'.format(args.exp), '')
             mdmfn = mdmfn.replace('.htr', '.txt')
+            savefolder = os.path.dirname(mdmfn)
+            if not os.path.exists(savefolder):
+                os.makedirs(savefolder)
             np.savetxt(mdmfn, databeats, delimiter='\n', fmt='%.09f')
         mad_beat += [databeats]
 
