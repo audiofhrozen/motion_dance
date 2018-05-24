@@ -110,6 +110,7 @@ if %stage% leq 2 (
     if %errorlevel% neq 0 exit /b %errorlevel%
 )
 
+set gpu=-1
 if %stage% leq 3 (
     echo Evaluating Network
     ( dir %DATA_EXTRACT%\AUDIO\MP3\*.mp3 /s/b /a-d )>%tst_lst%

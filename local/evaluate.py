@@ -167,7 +167,8 @@ def main():
     model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
     serializers.load_hdf5(args.model, model)
     logging.info('Loading pretrained model from {}'.format(args.model))
-    model.to_gpu()
+    if args.gpu >= 0:
+        model.to_gpu()
 
     minmaxfile = os.path.join('exp', 'data', '{}_{}'.format(args.exp, args.rot), 'minmax', 'pos_minmax.h5')
     with h5py.File(minmaxfile, 'r') as f:
@@ -252,8 +253,12 @@ def main():
                         for k in six.moves.range(audio.shape[0] - 1):
                             audiofeat = model.audiofeat(Variable(xp.asarray(audio[k:k + 1])))
                             rnnAudio, state, out_step = model.forward(state, current_step, audiofeat, True)
-                            predicted_motion[k + 1] = chainer.cuda.to_cpu(out_step.data)
-                            feats[k] = chainer.cuda.to_cpu(rnnAudio.data)
+                            if args.gpu >= 0:
+                                predicted_motion[k + 1] = chainer.cuda.to_cpu(out_step.data)
+                                feats[k] = chainer.cuda.to_cpu(rnnAudio.data)
+                            else:
+                                predicted_motion[k + 1] = out_step.data
+                                feats[k] = rnnAudio.data
                             current_step = out_step
 
                     del audio
@@ -362,8 +367,11 @@ if __name__ == '__main__':
                    os.path.join(DATA_FOLDER, 'AUDIO', 'WAVE', 'NOISE', 'crowd.wav')]
     audio_list = glob.glob(os.path.join(DATA_FOLDER, 'AUDIO', 'MP3', '*.mp3'))
     snr_lst = args.snr
-    chainer.cuda.get_device_from_id(args.gpu).use()
-    xp = cuda.cupy
+    if args.gpu >= 0:
+        chainer.cuda.get_device_from_id(args.gpu).use()
+        xp = cuda.cupy
+    else:
+        xp = np
     format = '%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s'
     if args.verbose < 1:
         logging.basicConfig(
