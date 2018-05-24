@@ -107,7 +107,7 @@ if [ ${stage} -le 0 ]; then
                       --basic_steps ${dance_steps} \
                       --beats_range 8 \
                       --beats_skips 5 \
-                      --verbose ${verbose}|| exit 1
+                      --verbose ${verbose} || exit 1
 fi
 echo "----- End-to-End stage"
 
@@ -170,7 +170,8 @@ if [ ${stage} -le 3 ]; then
                     --stage "end2end" \
                     --alignframe ${frame_align} \
                     --step_file ${exp_data}/annots/train_basic_step.h5 \
-                    --untrained ${untrained} || exit 1
+                    --untrained ${untrained} \
+                    --verbose ${verbose} || exit 1
 fi
 
 echo "`basename $0` Done."

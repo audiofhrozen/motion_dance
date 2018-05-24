@@ -26,7 +26,7 @@ set frqsmp=16000
 set silence=10
 set scale=100.0
 set featextract=%feats%Feat 
-
+set verbose=1
 set untrained=0
 
 set LSTM_units=500
@@ -68,7 +68,8 @@ if %stage% leq 0 (
                                 --steps_folder $steps_folder ^
                                 --basic_steps %basic_steps% ^
                                 --beats_range 8 ^
-                                --beats_skips 5 
+                                --beats_skips 5 ^
+                                --verbose %verbose%
     if %errorlevel% neq 0 exit /b %errorlevel%
 )
 
@@ -135,7 +136,8 @@ if %stage% leq 3 (
                             --alignframe %frame_align% ^
                             --audio_list %tst_lst% ^
                             --step_file %exp_data%\annots\train_basic_step.h5 ^
-                            --untrained %untrained%
+                            --untrained %untrained% ^
+                            --verbose %verbose%
     if %errorlevel% neq 0 exit /b %errorlevel%                
 )
 

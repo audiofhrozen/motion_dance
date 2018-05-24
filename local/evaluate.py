@@ -4,8 +4,17 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import warnings
+
+try:
+    # TODO(nelson): Delete this part when H5PY message is fixed.
+    warnings.filterwarnings('ignore')
+except Exception as e:
+    pass
+
 import chainer
 import glob
+import h5py
 import imp
 import logging
 import os
@@ -31,13 +40,6 @@ import soundfile
 from utillib.audio import add_noise
 from utillib.audio import single_spectrogram
 import utillib.BTET.beat_evaluation_toolbox as be
-import warnings
-
-try:
-    warnings.filterwarnings('ignore')
-except Exception as e:
-    pass
-import h5py
 
 
 def format_audio(audioname, noise, snr, freq_samp, wav_range):
@@ -58,6 +60,7 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
         elif platform == 'Linux':
             os.system('sox {} -c 1 -r {} {}'.format(audioname, freq_samp, wavname))
         else:
+            logging.error('OS not supported')
             raise TypeError('OS not supported')
     data_wav, _ = soundfile.read(wavname)
     data_wav /= np.amax(np.abs(data_wav))
@@ -72,6 +75,7 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
         stft = single_spectrogram(data_wav[prv:loc], freq_samp, args.wlen, args.hop)
         hops = stft.shape[0]
         stft_data[i, 0, :, :hops] = np.swapaxes(stft, 0, 1)
+    del data_wav
     stft_data = (stft_data * slope) + intersec
     return stft_data
 
@@ -201,10 +205,15 @@ def main():
                 mbfile = filelist[j].replace(os.path.join('MOCAP', 'HTR'), os.path.join('Annotations', 'corrected'))
                 mbfile = mbfile.replace('{}_'.format(args.exp), '')
                 mbfile = mbfile.replace('.htr', '.txt')
+
+                audiofile = filelist[j].replace(os.path.join('MOCAP', 'HTR'), os.path.join('AUDIO', 'MP3'))
+                audiofile = audiofile.replace('{}_'.format(args.exp), '')
+                audiofile = audiofile.replace('.htr', '.mp3')
             else:
                 mbfile = filelist[j].replace(os.path.join('AUDIO', 'MP3'), os.path.join('Annotations', 'corrected'))
                 mbfile = mbfile.replace('.mp3', '.txt')
-            logging.info(mbfile)
+
+                audiofile = filelist[j]
             music_beat = np.unique(np.loadtxt(mbfile))
             filename = os.path.basename(mbfile).split('.')[0]
 
@@ -232,12 +241,7 @@ def main():
                         else:
                             raise TypeError('OS not supported')
                 for snr in list_snr:
-                    if i == 0:
-                        audiofile = filelist[j].replace(os.path.join('MOCAP', 'HTR'), os.path.join('AUDIO', 'MP3'))
-                        audiofile = audiofile.replace('{}_'.format(args.exp), '')
-                        audiofile = audiofile.replace('.htr', '.mp3')
-                    else:
-                        audiofile = filelist[j]
+                    logging.info('Forwarding file: {} with noise: {} at snr: {}'.format(audiofile, noise, snr))
                     audio = format_audio(audiofile, noise, snr, args.freq, config['rng_wav'])
                     predicted_motion = np.zeros((audio.shape[0], args.initOpt[2]), dtype=np.float32)
                     feats = np.zeros((audio.shape[0] - 1, args.initOpt[1]), dtype=np.float32)
@@ -251,10 +255,12 @@ def main():
                             predicted_motion[k + 1] = chainer.cuda.to_cpu(out_step.data)
                             feats[k] = chainer.cuda.to_cpu(rnnAudio.data)
                             current_step = out_step
+
+                    del audio
                     time = timeit.default_timer() - start
                     predicted_motion = (predicted_motion - config['intersec_pos']) / config['slope_pos']
                     predicted_motion = render_motion(predicted_motion, args.rot, scale=args.scale)
-
+                    logging.info('Forwarding time was: {}s'.format(time))
                     # Evaluations
                     fscore, prec, recall, acc, best_init_beat, best_beat_entropy, best_step_entropy = metrics(
                         predicted_motion, music_beat, motion_beat_idx, dance_step)
@@ -278,6 +284,9 @@ def main():
                     with h5py.File(save_file, 'w') as f:
                         f.create_dataset('motion', data=predicted_motion)
                         f.create_dataset('audiofeats', data=feats)
+
+                    del feats
+                    del predicted_motion
 
             # Save evaluations results
             df = pandas.DataFrame(results, columns=results_keys)
