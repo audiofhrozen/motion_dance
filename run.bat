@@ -4,10 +4,10 @@ call "path.bat"
 
 set net=s2smc
 set rot=quat
-set exp=bounce2
-set stage=3
+set exp=sequence
+set stage=0
 set feats=CNN
-set init_step=0
+set init_step=1
 
 set epoch=5
 set batch=10
@@ -70,7 +70,7 @@ if %stage% leq 0 (
                                 --beats_range 8 ^
                                 --beats_skips 5 ^
                                 --verbose %verbose%
-    if %errorlevel% neq 0 exit /b %errorlevel%
+    if !errorlevel! neq 0 exit /b !errorlevel!
 )
 
 if %stage% leq 1 ( 

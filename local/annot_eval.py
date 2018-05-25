@@ -58,7 +58,7 @@ def processMarsyas(filename):
     if not os.path.exists(wav_fn):
         mp3_fn = wav_fn.replace('WAVE', 'MP3')
         mp3_fn = mp3_fn.replace('wav', 'mp3')
-        print('Wavefile not found in folder, converting from mp3 file.')
+        logging.warning('Wavefile not found in folder, converting from mp3 file.')
         convermp32wav(mp3_fn, wav_fn)
     os.system('ibt -off -o "beats" {} tmp_marsyas.txt'.format(wav_fn))
     with open('tmp_marsyas.txt') as f:
@@ -77,7 +77,7 @@ def processmadmomRNN(proc, filename):
     if not os.path.exists(wav_fn):
         mp3_fn = wav_fn.replace('WAVE', 'MP3')
         mp3_fn = mp3_fn.replace('wav', 'mp3')
-        print('Wavefile not found in folder, converting from mp3 file.')
+        logging.warning('Wavefile not found in folder, converting from mp3 file.')
         convermp32wav(mp3_fn, wav_fn)
     act = beats.RNNBeatProcessor()(wav_fn)
     bpm = proc(act)
@@ -193,7 +193,7 @@ def main():
         for i in six.moves.range(len(filelist)):
             rotations = motionread(filelist[i], 'htr', 'euler', JOINTS, True)
             idx = align_idx[i]
-            aligned_motion = rotations[idx:, ]
+            aligned_motion = rotations[idx:]
             music_beat_frame = np.asarray(music_beat[i] * float(args.fps), dtype=np.int)
             for beat_start in six.moves.range(args.beats_skips):
                 for beat_length in six.moves.range(1, args.beats_range):
@@ -203,6 +203,8 @@ def main():
                     while start_idx + beat_length < music_beat[i].shape[0]:
                         start = music_beat_frame[start_idx]
                         stop = music_beat_frame[start_idx + beat_length]
+                        if stop >= aligned_motion.shape[0]:
+                           break
                         if basic_step is None:
                             basic_step = aligned_motion[start:stop]
                         else:
