@@ -15,4 +15,5 @@ local/utillib
 local/__pycache__
 local/.ipynb_checkpoints
 local/do*
+local/BTET*
 extras/*

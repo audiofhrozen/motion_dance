@@ -12,6 +12,7 @@ try:
 except Exception as e:
     pass
 
+import BTET.beat_evaluation_toolbox as be
 import chainer
 import glob
 import h5py
@@ -37,9 +38,8 @@ from scipy import signal
 from scipy import stats
 import soundfile
 
-from utillib.audio import add_noise
-from utillib.audio import single_spectrogram
-import utillib.BTET.beat_evaluation_toolbox as be
+from inlib import add_noise
+from inlib import single_spectrogram
 
 
 def format_audio(audioname, noise, snr, freq_samp, wav_range):
@@ -265,7 +265,7 @@ def main():
                     time = timeit.default_timer() - start
                     predicted_motion = (predicted_motion - config['intersec_pos']) / config['slope_pos']
                     predicted_motion = render_motion(predicted_motion, args.rot, scale=args.scale)
-                    logging.info('Forwarding time was: {}s'.format(time))
+                    logging.info('Forwarding time was: {:.02f}s'.format(time))
                     # Evaluations
                     fscore, prec, recall, acc, best_init_beat, best_beat_entropy, best_step_entropy = metrics(
                         predicted_motion, music_beat, motion_beat_idx, dance_step)

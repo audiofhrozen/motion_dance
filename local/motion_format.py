@@ -2,16 +2,21 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
 import warnings
-warnings.filterwarnings('ignore')
+try:
+  warnings.filterwarnings('ignore')
+except:
+  pass
+
+import logging
 import glob, os, h5py, argparse, shutil, sys
 import numpy as np
 import soundfile 
 from numpy import linalg as LA
 from transforms3d.euler import euler2quat, quat2euler
-from utillib.audio import add_noise, single_spectrogram
-from utillib.maths import angle_between
-from utillib.print_utils import print_info, print_error
+from inlib import add_noise, single_spectrogram, angle_between
+
 try:
   disp=os.environ['DISPLAY']
 except Exception as e:
@@ -38,9 +43,10 @@ def Configuration(args):
           }
   return config
 
-def format_motion_audio(filename, config, slash, snr=None, noise='white', align=0):
+def format_motion_audio(filename, config, snr=None, noise='white', align=0):
   #TODO: Change configs and test differents
-  wavefile = filename.replace('MOCAP{}HTR'.format(slash), 'AUDIO{}WAVE'.format(slash))
+
+  wavefile = filename.replace(os.path.join('MOCAP', 'HTR'), os.path.join('AUDIO', 'WAVE'))
   wavefile = wavefile.replace('.htr', '.wav')
   wavefile = wavefile.replace('{}_'.format(config['exp']), '')
   wavefile = wavefile.replace('test_', '')

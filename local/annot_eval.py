@@ -2,12 +2,21 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
+import warnings
+try:
+    warnings.filterwarnings('ignore')
+except Exception as e:
+    pass
+
 import argparse
 import glob
+import h5py
 import logging
 import os
 import platform
 
+import BTET.beat_evaluation_toolbox as be
 from madmom.features import beats
 from motion_format import calculate_rom
 from motion_format import extract_beats
@@ -20,8 +29,7 @@ import pandas as pd
 from scipy import signal
 from scipy import stats
 import six
-import utillib.BTET.beat_evaluation_toolbox as be
-import warnings
+
 try:
     disp = os.environ['DISPLAY']
 except Exception as e:
@@ -29,11 +37,6 @@ except Exception as e:
     mpl.use('Agg')
     pass
 from matplotlib import pyplot as plt
-try:
-    warnings.filterwarnings('ignore')
-except Exception as e:
-    pass
-import h5py
 
 
 def convermp32wav(infile, outfile):
@@ -204,7 +207,7 @@ def main():
                         start = music_beat_frame[start_idx]
                         stop = music_beat_frame[start_idx + beat_length]
                         if stop >= aligned_motion.shape[0]:
-                           break
+                            break
                         if basic_step is None:
                             basic_step = aligned_motion[start:stop]
                         else:
@@ -263,7 +266,6 @@ def main():
     align_txt = '\n'.join(align_txt)
     with open(os.path.join(args.output, '{}_files_align.txt'.format(args.stage)), 'w+') as f:
         f.write(align_txt)
-    logging.info('\nDone')
 
 
 if __name__ == '__main__':

@@ -1,22 +1,17 @@
 #!/bin/bash
 
-helptext="gpu model rotation type -- execute all programs inside docker container"
-gpu=0
-net="s2s"
-rot="quat"
-exp="sequence"
-stage=0
-name="ch320_u1604_c90_cdnn7_nossh" 
-image="chainer/nossh:3.2.0-cuda9.0-cudnn7-16.04" 
+docker_gpu=0
+docker_cuda=9.0
+docker_cudnn=7
 
 while test $# -gt 0
 do
     case "$1" in
-        -h) echo "Usage: `basename $0` [-h] $helptext"
+        -h) echo "Usage: `basename $0` [-h] docker_gpu docker_cuda docker_cudnn options"
             exit 0;;
-        --help) echo "Usage: `basename $0` [-h] $helptext"
+        --help) echo "Usage: `basename $0` [-h] ] docker_gpu docker_cuda docker_cudnn options"
               exit 0;;
-        --*) ext=${1#--}
+        --docker*) ext=${1#--}
               frombreak=true
               for i in _ {a..z} {A..Z}; do
                 for var in `eval echo "\\${!$i@}"`; do
@@ -32,30 +27,47 @@ do
                 exit 1
               fi
               ;;
-        *) echo "argument $1 does not exit"
-            exit 1;;
+        --*) break
+              ;;
     esac
     shift
     shift
 done
 
-docker_image=$( docker images -q $image ) 
-if ! [[ -n $docker_image  ]]; then
-  echo "Building docker image..."
-  (docker build -t $image -< ./docker/"$name".devel) || exit 1
+if [ ! "${docker_gpu}" == "-1" ]; the
+  from_image="ubuntu:16.04"
+  image_label="dancer:ubuntu16.04"
+  else
+  from_image="nvidia/cuda:${docker_cuda}-cudnn${docker_cudnn}-devel-ubuntu16.04"
+  image_label="dancer:cuda${docker_cuda}-cudnn${docker_cudnn}-ubuntu16.04"
 fi
 
-vol1="$PWD/../../:/Tasks" # <=Folder to save data
-#vol2="/home/nelson/Documents/libs_python:/libs_python"
+docker_image=$( docker images -q ${image_label} ) 
+if ! [[ -n $docker_image  ]]; then
+  echo "Building docker image..."
+  build_args="--build-arg FROM_IMAGE=${from_image}"
+  if [ ! -z "${HTTP_PROXY}" ]; then
+    echo "Building with proxy ${HTTP_PROXY}"
+    build_args="${build_args} --build-arg WITH_PROXY=${HTTP_PROXY}"
+  fi 
+  (docker build ${build_args} -f local/dancer.devel -t ${image_label} .) || exit 1
+fi
 
-cmd1="cd /Tasks/egs/motion_dance_v3"
-cmd2="./run.sh --net $net --rot $rot --exp $exp --stage $stage"
-cmd3="chmod -R 777 ./exp"
+echo "Using image ${from_image}."
+vol="$PWD:/motion_dance" # <=Folder to save data
 
-echo "Executing application in Docker container"
-cmd="NV_GPU=$gpu nvidia-docker run -i --rm --name task3_$gpu -v $vol1  $image /bin/bash -c '$cmd1; $cmd2; $cmd3'" #<--rm erase the container at finishing the training, deleting all data (including training), should be remove to keep the container but for this configuration is recommended to use ssh
-echo $cmd
-#exit 0
-eval $cmd
+cmd1="cd /motion_dance"
+cmd2="./run.sh $@"
+cmd3="chmod -R 777 /motion_dance"
 
-echo "`basename $0` Done."
+cmd="${cmd1}; ${cmd2}; ${cmd3}"
+if [ "${docker_gpu}" == "-1" ]; then
+  cmd="docker run -i --rm --name dancer_cpu ${vol} ${image_label} /bin/bash -c '${cmd}'"
+else
+  cmd="NV_GPU='${docker_gpu}' nvidia-docker run -i --rm --name dancer_gpu${docker_gpu} ${vol} ${image_label} /bin/bash -c '${cmd}'"
+fi
+echo "Executing application in Docker"
+echo ${cmd}
+eval ${cmd}
+
+echo "`basename $0` done."

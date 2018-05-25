@@ -6,11 +6,11 @@
 export DATA_ROOT=/export/corpus/DeepDancer
 export DATA_EXTRACT=$DATA_ROOT
 
-if ! [[ -L ./bin  ]]; then
-  ln -s ../../src/bin ./
-fi
+# if ! [[ -L ./bin  ]]; then
+#  ln -s ../../src/bin ./
+# fi
 
-if ! [[ -L ./docker  ]]; then
-  ln -s ../../src/docker ./
-fi
+# if ! [[ -L ./docker  ]]; then
+#  ln -s ../../src/docker ./
+# fi
 
