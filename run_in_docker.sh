@@ -34,10 +34,10 @@ do
     shift
 done
 
-if [ ! "${docker_gpu}" == "-1" ]; the
+if [ ! "${docker_gpu}" == "-1" ]; then
   from_image="ubuntu:16.04"
   image_label="dancer:ubuntu16.04"
-  else
+else
   from_image="nvidia/cuda:${docker_cuda}-cudnn${docker_cudnn}-devel-ubuntu16.04"
   image_label="dancer:cuda${docker_cuda}-cudnn${docker_cudnn}-ubuntu16.04"
 fi
