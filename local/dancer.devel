@@ -50,7 +50,7 @@ RUN pip install -U numpy \
                 madmom \
                 chainerui
 
-RUN cd /usr/local/lib/python2.7/dist-packages &&
+RUN cd /usr/local/lib/python2.7/dist-packages && \
     git clone https://github.com/Fhrozen/BTET.git
 RUN pip install cupy
 RUN pip install chainer
