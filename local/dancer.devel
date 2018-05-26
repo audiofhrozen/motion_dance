@@ -40,6 +40,7 @@ RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
 RUN pip install -U pip \
                 cython
 RUN pip install -U numpy \
+                pandas \
                 h5py \
                 scipy \
                 matplotlib \
