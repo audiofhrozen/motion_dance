@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libhdf5-dev \
         libjack-dev \
         libsndfile-dev \
-        libsox-fmt-all
+        libsox-fmt-all \
         python-numpy-dev \
         python-tk \
         pciutils \
