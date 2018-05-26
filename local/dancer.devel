@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         zlib1g-dev \
         libcurl3-dev \
         libhdf5-dev \
-        libjack-jack2-dev \
+        libjack-dev \
         libsndfile-dev \
         libasound2-dev \
         python-numpy-dev \
