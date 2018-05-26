@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         wget \
         build-essential \
         curl \
+        ffmpeg \
         git \
         libfreetype6-dev \
         libpng12-dev \
