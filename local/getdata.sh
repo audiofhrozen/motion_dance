@@ -17,5 +17,4 @@ fi
 
 echo "--- Starting archives extraction ..."
 tar  -C $DATA_EXTRACT -xzf $DATA_TGZ/data.tar.gz  || exit 1
-done
-
+echo "`basename $0` Done."

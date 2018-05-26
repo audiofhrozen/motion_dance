@@ -85,7 +85,7 @@ exp_data=./exp/data/${exp}_${rot}
 echo "----- Exp: ${exp_name}"
 if [ ${stage} -le -1 ]; then
   echo "Data Download"
-  local/getdata.sh 
+  local/getdata.sh || exit 1
 fi
 
 trn_lst=${exp_data}/annots/train.lst

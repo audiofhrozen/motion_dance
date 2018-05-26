@@ -54,7 +54,7 @@ if ! [[ -n $docker_image  ]]; then
 fi
 
 echo "Using image ${from_image}."
-vol="$PWD:/motion_dance" # <=Folder to save data
+vol="-v $PWD:/motion_dance " # <=Folder to save data
 
 cmd1="cd /motion_dance"
 cmd2="./run.sh $@"
