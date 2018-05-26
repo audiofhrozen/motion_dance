@@ -19,18 +19,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         pkg-config \
         python-dev \
         software-properties-common \
-        sox \
-        swig \
-        zip \
-        zlib1g-dev \
+        libasound2-dev \
         libcurl3-dev \
         libhdf5-dev \
         libjack-dev \
         libsndfile-dev \
-        libasound2-dev \
+        libsox-fmt-all
         python-numpy-dev \
         python-tk \
         pciutils \
+        sox \
+        swig \
+        zip \
+        zlib1g-dev \
         && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
