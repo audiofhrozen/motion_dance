@@ -7,22 +7,25 @@ from scipy.signal import hamming
 
 
 def STFT(x, wlen, h, nfft, fs): 
-    ########################################################
-    #              Short-Time Fourier Transform            %
-    #               with MATLAB Implementation             %
-    #                  For Python                          %
-    # Copier: Nelson Yalta                       11/03/15  %
-    ########################################################
-    # function: [stft, f, t] = stft(x, wlen, h, nfft, fs)
-    # x - signal in the time domain
-    # wlen - length of the hamming window
-    # h - hop size
-    # nfft - number of FFT points
-    # fs - sampling frequency, Hz
-    # f - frequency vector, Hz
-    # t - time vector, s
-    # stft - STFT matrix (only unique points, time across columns, freq across rows)
-    # represent x as column-vector if it is not
+    """
+    -------------------------------------------------------
+                  Short-Time Fourier Transform            
+                   with MATLAB Implementation             
+                      For Python                          
+     Original Code from Matlab                            
+     Transcribe by Nelson Yalta                 11/03/15  
+    --------------------------------------------------------
+     function: [stft, f, t] = stft(x, wlen, h, nfft, fs)
+     x - signal in the time domain
+     wlen - length of the hamming window
+     h - hop size
+     nfft - number of FFT points
+     fs - sampling frequency, Hz
+     f - frequency vector, Hz
+     t - time vector, s
+     stft - STFT matrix (only unique points, time across columns, freq across rows)
+     represent x as column-vector if it is not
+    """
 
     if (len(x.shape) > 1) and (x.shape[1] > 1):
             x = x.transpose()
@@ -70,7 +73,7 @@ def single_spectrogram(inseq,fs,wlen,h,imag=False):
     """
     NFFT = int(2**(np.ceil(np.log2(wlen))))
     K = np.sum(hamming(wlen, False))/wlen
-    raw_data = inseq#.astype('float32')
+    raw_data = inseq  
     #data_max = (np.amax(np.absolute(raw_data)))
     #data_max = data_max if data_max != 0 else 1
     #raw_data = raw_data / data_max

@@ -4,8 +4,8 @@ call "path.bat"
 
 set net=s2smc
 set rot=quat
-set exp=bounce
-set stage=3
+set exp=sequence
+set stage=0
 set feats=CNN
 set init_step=1
 
@@ -73,7 +73,7 @@ if %stage% leq 0 (
                                 --verbose %verbose%
     if !errorlevel! neq 0 exit /b !errorlevel!
 )
-
+goto eof
 if %stage% leq 1 ( 
     echo ----- Preparing training data for motion ...
     if not exist %exp_data%\data md %exp_data%\data 
