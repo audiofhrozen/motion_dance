@@ -1,0 +1,17 @@
+language: python
+
+cache:
+  - pip
+  - ccache
+
+matrix:
+  include:
+    - os: linux
+      python: "2.7"
+    - os: linux
+      python: "3.6"
+
+script:
+  - flake8
+
+sudo: false

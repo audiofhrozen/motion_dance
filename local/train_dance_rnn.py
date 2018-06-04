@@ -2,158 +2,177 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
 import warnings
 try:
     warnings.filterwarnings('ignore')
-except Exception:
+except Exception as e:
     pass
-import logging
-import signal, timeit, json, imp, importlib, argparse, platform
-import sys, os
-import numpy as np
-from sys import stdout 
 
+import argparse
 import chainer
-from chainer import iterators, serializers, training
+from chainer import iterators
+from chainer.optimizer import GradientClipping
+from chainer.optimizer import GradientNoise
+from chainer import optimizers
+from chainer import serializers
+from chainer import training
 from chainer.training import extensions
-import chainer.optimizers as O
-from chainer.optimizer import GradientNoise, GradientClipping
-from chainerui.extensions import CommandsExtension
+# from chainerui.extensions import CommandsExtension
 from chainerui.utils import save_args
+import imp
+import importlib
+import logging
 import matplotlib
+import numpy as np
+import os
+import platform
+import signal
+import sys
+
+
 matplotlib.use('Agg')
+model = None
+
 
 def convert(batch, device):
-  in_audio, context, nx_step = batch[0]
-  for i in range(1, len(batch)):
-    in_audio = np.concatenate((in_audio, batch[i][0]), axis=0)
-    context = np.concatenate((context, batch[i][1]), axis=0)
-    nx_step = np.concatenate((nx_step, batch[i][2]), axis=0)
+    in_audio, context, nx_step = batch[0]
+    for i in range(1, len(batch)):
+        in_audio = np.concatenate((in_audio, batch[i][0]), axis=0)
+        context = np.concatenate((context, batch[i][1]), axis=0)
+        nx_step = np.concatenate((nx_step, batch[i][2]), axis=0)
 
-  if device>= 0:
-    in_audio = chainer.cuda.to_gpu(in_audio)
-    context =  chainer.cuda.to_gpu(context)
-    nx_step = chainer.cuda.to_gpu(nx_step)
-  return [in_audio, context, nx_step]
+    if device >= 0:
+        in_audio = chainer.cuda.to_gpu(in_audio)
+        context = chainer.cuda.to_gpu(context)
+        nx_step = chainer.cuda.to_gpu(nx_step)
+    return [in_audio, context, nx_step]
 
-class BPTTUpdater(training.updater.StandardUpdater):
-  """docstring for BPTTUpdater"""
-  def __init__(self, train_iter, optimizer, bprop_len, device, converter):
-    super(BPTTUpdater, self).__init__(
-      train_iter, optimizer, device=device, converter=converter)
-    self.bprop_len = bprop_len
 
-  def update_core(self):
-    loss = 0
-    train_iter = self.get_iterator('main')
-    optimizer = self.get_optimizer('main')
-    train_batch = self.converter(train_iter.next(), self.device)
-    optimizer.target.cleargrads()
-    loss = optimizer.target(train_batch)
-    chainer.report({'loss': loss}, optimizer.target)
-    loss.backward()
-    loss.unchain_backward()
-    optimizer.update()
-
-model = None
- 
 def signal_handler(signal, frame):
     logging.warning('Previous Finish Training... ')
     if not os.path.exists(args.save):
-      os.makedirs(args.save)
+        os.makedirs(args.save)
     serializers.save_hdf5('{}/trained.model'.format(args.save), model)
     logging.info('Optimization Finished')
     sys.exit(0)
 
-signal.signal(signal.SIGINT, signal_handler)   
- 
+
+signal.signal(signal.SIGINT, signal_handler)
+
+
+class BPTTUpdater(training.updater.StandardUpdater):
+    """docstring for BPTTUpdater"""
+
+    def __init__(self, train_iter, optimizer, bprop_len, device, converter):
+        super(BPTTUpdater, self).__init__(
+            train_iter, optimizer, device=device, converter=converter)
+        self.bprop_len = bprop_len
+
+    def update_core(self):
+        loss = 0
+        train_iter = self.get_iterator('main')
+        optimizer = self.get_optimizer('main')
+        train_batch = self.converter(train_iter.next(), self.device)
+        optimizer.target.cleargrads()
+        loss = optimizer.target(train_batch)
+        chainer.report({'loss': loss}, optimizer.target)
+        loss.backward()
+        loss.unchain_backward()
+        optimizer.update()
+
+
 def main():
-  global model
-  logging.info('Training model: {}'.format(args.network))
-  net = imp.load_source('Network', args.network)
-  audionet = imp.load_source('Network', './models/audio_nets.py')
-  model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
-  if args.gpu >= 0:
-    if chainer.cuda.available:
-      chainer.cuda.get_device_from_id(args.gpu).use()
-      chainer.config.cudnn_deterministic = False
-      if platform == 'Windows':
-        import subprocess
-        win_cmd = 'wmic path win32_VideoController get Name | findstr /C:"NVIDIA"'
-        names_gpu  = subprocess.check_output(win_cmd, shell=True).decode("utf-8")
-        gpu_name = names_gpu.split('\r')[0]
-      elif platform =="Linux":
-        import os
-        names_gpu = os.popen('lspci | grep NVIDIA | grep controller').read().split('\n')
-        try:
-          _, gpu_name = names_gpu[args.gpu].split('[')
-          gpu_name, _ = gpu_name.split(']')
-        except:
-          gpu_name = ""
-      else:
-        raise OSError('OS not supported')
-      logging.info('GPU: {} - {}'.format(args.gpu, gpu_name))
-      model.to_gpu()
-    else:
-      logging.warning('No GPU was found, the training will be executed in the CPU')
-      args.gpu = -1
+    global model
+    logging.info('Training model: {}'.format(args.network))
+    net = imp.load_source('Network', args.network)
+    audionet = imp.load_source('Network', './models/audio_nets.py')
+    model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
+    if args.gpu >= 0:
+        if chainer.cuda.available:
+            chainer.cuda.get_device_from_id(args.gpu).use()
+            chainer.config.cudnn_deterministic = False
+            if platform == 'Windows':
+                import subprocess
+                win_cmd = 'wmic path win32_VideoController get Name | findstr /C:"NVIDIA"'
+                names_gpu = subprocess.check_output(win_cmd, shell=True).decode("utf-8")
+                gpu_name = names_gpu.split('\r')[0]
+            elif platform == "Linux":
+                import os
+                names_gpu = os.popen('lspci | grep NVIDIA | grep controller').read().split('\n')
+                try:
+                    _, gpu_name = names_gpu[args.gpu].split('[')
+                    gpu_name, _ = gpu_name.split(']')
+                except Exception as e:
+                    gpu_name = ""
+            else:
+                raise OSError('OS not supported')
+            logging.info('GPU: {} - {}'.format(args.gpu, gpu_name))
+            model.to_gpu()
+        else:
+            logging.warning('No GPU was found, the training will be executed in the CPU')
+            args.gpu = -1
 
-  logging.info('Minibatch-size: {}'.format(args.batch))
-  logging.info('# epoch: {}'.format(args.epoch))
-  
-  DBClass = importlib.import_module('inlib.dataset_hdf5')
-  try:
-    trainset = getattr(DBClass,args.dataset)(args.folder, args.sequence, 'train', args.init_step)
-  except Exception as e:
-    logging.warning('Cannot continue with the training, Failing Loading Data... ')
-    raise TypeError(e)
+    logging.info('Minibatch-size: {}'.format(args.batch))
+    logging.info('# epoch: {}'.format(args.epoch))
 
-  try:
-    testset = getattr(DBClass,args.dataset)(args.folder, args.sequence, 'test', args.init_step)
-  except Exception as e:
-    logging.warning('Cannot find testing files, test stage will be skipped... ')
-    testset = None
+    DBClass = importlib.import_module('inlib.dataset_hdf5')
+    try:
+        trainset = getattr(DBClass, args.dataset)(args.folder, args.sequence, 'train', args.init_step)
+    except Exception as e:
+        logging.warning('Cannot continue with the training, Failing Loading Data... ')
+        raise TypeError(e)
 
-  def make_optimizer(net, alpha=0.0002, beta1=0.5):
-    optimizer = O.Adam(alpha=alpha, beta1=beta1, amsgrad=True)
-    optimizer.setup(net)
-    logging.info('Adding Gradient Clipping Hook')
-    optimizer.add_hook(GradientClipping(10.), 'hook_clip')
-    logging.info('Adding Gradient Noise Hook')
-    optimizer.add_hook(GradientNoise(0.01), 'hook_noise')
-    return optimizer
+    try:
+        testset = getattr(DBClass, args.dataset)(args.folder, args.sequence, 'test', args.init_step)
+    except Exception as e:
+        logging.warning('Cannot find testing files, test stage will be skipped... ')
+        testset = None
 
-  optimizer = make_optimizer(model)
+    def make_optimizer(net, alpha=0.0002, beta1=0.5):
+        optimizer = optimizers.Adam(alpha=alpha, beta1=beta1, amsgrad=True)
+        optimizer.setup(net)
+        logging.info('Adding Gradient Clipping Hook')
+        optimizer.add_hook(GradientClipping(10.), 'hook_clip')
+        logging.info('Adding Gradient Noise Hook')
+        optimizer.add_hook(GradientNoise(0.01), 'hook_noise')
+        return optimizer
 
-  train_iter = iterators.MultiprocessIterator(trainset, batch_size=args.batch, shuffle=True, n_processes=args.workers, \
-      n_prefetch=args.workers) 
+    optimizer = make_optimizer(model)
 
-  if testset is not None:
-    test_iter = iterators.SerialIterator(testset, batch_size=args.batch, repeat=False, shuffle=False)
+    train_iter = iterators.MultiprocessIterator(trainset, batch_size=args.batch, shuffle=True, n_processes=args.workers,
+                                                n_prefetch=args.workers)
 
-  updater = BPTTUpdater(train_iter, optimizer, None, args.gpu, converter=convert) # TODO: Change latter the steps
-  trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.save)
-  trainer.extend(extensions.dump_graph('main/loss'))
-  frequency = args.epoch if args.frequency == -1 else max(1, args.frequency)
-  trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
-  trainer.extend(extensions.LogReport())
+    if testset is not None:
+        test_iter = iterators.SerialIterator(testset, batch_size=args.batch, repeat=False, shuffle=False)
 
-  if extensions.PlotReport.available():
-    trainer.extend(extensions.PlotReport(['main/loss'], 'epoch', file_name='loss.png'))
-  trainer.extend(extensions.PrintReport( ['epoch', 'main/loss', 'elapsed_time']))
-  trainer.extend(extensions.ProgressBar())
+    # TODO(nelson): Change later the steps
+    updater = BPTTUpdater(train_iter, optimizer, None, args.gpu, converter=convert)
+    trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.save)
+    trainer.extend(extensions.dump_graph('main/loss'))
+    frequency = args.epoch if args.frequency == -1 else max(1, args.frequency)
+    trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
+    trainer.extend(extensions.LogReport())
+    if testset is not None:
+        trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu, converter=convert))
 
-  trainer.extend(extensions.observe_lr())
-  #trainer.extend(CommandsExtension())
-  save_args(args, args.save)
-  trainer.run()
+    if extensions.PlotReport.available():
+        trainer.extend(extensions.PlotReport(['main/loss'], 'epoch', file_name='loss.png'))
+    trainer.extend(extensions.PrintReport(['epoch', 'main/loss', 'elapsed_time']))
+    trainer.extend(extensions.ProgressBar())
 
-  if not os.path.exists(args.save):
-    os.makedirs(args.save)
+    trainer.extend(extensions.observe_lr())
+    # trainer.extend(CommandsExtension())
+    save_args(args, args.save)
+    trainer.run()
 
-  serializers.save_hdf5('{}/trained_{}.model'.format(args.save, args.epoch), model)
+    if not os.path.exists(args.save):
+        os.makedirs(args.save)
 
-if __name__=='__main__':
+    serializers.save_hdf5('{}/trained_{}.model'.format(args.save, args.epoch), model)
+
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training Program based on Chainer Framework')
     parser.add_argument('--dataset', '-d', type=str,
                         help='Dataset File')
@@ -169,7 +188,7 @@ if __name__=='__main__':
                         type=str, help='Dataset Location')
     parser.add_argument('--gpu', '-g', type=int,
                         help='GPU id to use, if -1 the operations will be executed in CPU', default=0)
-    parser.add_argument('--initOpt', '-i',  nargs='+', type=int,
+    parser.add_argument('--initOpt', '-i', nargs='+', type=int,
                         help='Model initial options')
     parser.add_argument('--network', '-n', type=str,
                         help='Network description in python format')

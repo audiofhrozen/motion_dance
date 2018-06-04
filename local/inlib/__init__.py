@@ -1,3 +1,3 @@
-from .datastft import single_spectrogram
-from .synthesize import add_noise
-from .utils import angle_between
+from inlib.datastft import single_spectrogram
+from inlib.synthesize import add_noise
+from inlib.utils import angle_between

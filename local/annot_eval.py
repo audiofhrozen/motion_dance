@@ -251,26 +251,33 @@ def main():
                                R_mot['scores_mean']['fMeasure']]}
     df = pd.DataFrame(init_results, columns=['comparison', 'fscore'])
     df.to_csv(os.path.join(args.output, '{}_init_results_ave.csv'.format(args.stage)), encoding='utf-8')
-    
+
     logging.info('Evaluating single file.')
     single_result = dict()
     single_result['file'] = list()
-    single_result['fscore-madmom'] = list()
-    single_result['fscore-marsyas'] = list()
-    single_result['fscore-motion'] = list()
+    single_result['madmom-fscore'] = list()
+    single_result['marsyas-fscore'] = list()
+    single_result['motion-fscore'] = list()
+    single_result['motion-prec'] = list()
+    single_result['motion-rc'] = list()
+    single_result['motion-acc'] = list()
     for i in six.moves.range(len(filelist)):
         basename = os.path.basename(filelist[i])
         single_result['file'].append(basename)
-        _r = be.evaluate_db([music_beat[i]], [mad_beat[i]], measures='fMeasure', doCI=True)
-        single_result['fscore-madmom'].append('{:.2f}'.format((_r['scores_mean']['fMeasure'])))
-        _r = be.evaluate_db([music_beat[i]], [marsyas_beat[i]], measures='fMeasure', doCI=True)
-        single_result['fscore-marsyas'].append('{:.2f}'.format((_r['scores_mean']['fMeasure'])))
-        _r = be.evaluate_db([music_beat[i]], [motion_beat[i]], measures='fMeasure', doCI=True)
-        single_result['fscore-motion'].append('{:.2f}'.format((_r['scores_mean']['fMeasure'])))
-    df_single = pd.DataFrame(single_result,
-        columns=['file', 'fscore-madmom', 'fscore-marsyas', 'fscore-motion'])
+        fscore, prec, recall, acc = be.fMeasure(music_beat[i], mad_beat[i])
+        single_result['madmom-fscore'].append('{:.2f}'.format(fscore))
+        fscore, prec, recall, acc = be.fMeasure(music_beat[i], marsyas_beat[i])
+        single_result['marsyas-fscore'].append('{:.2f}'.format(fscore))
+        fscore, prec, recall, acc = be.fMeasure(music_beat[i], motion_beat[i])
+        single_result['motion-fscore'].append('{:.2f}'.format(fscore))
+        single_result['motion-prec'].append('{:.2f}'.format(prec))
+        single_result['motion-rc'].append('{:.2f}'.format(recall))
+        single_result['motion-acc'].append('{:.2f}'.format(acc))
+
+    keys = [x for x in single_result]
+    df_single = pd.DataFrame(single_result, columns=keys)
     df_single.to_csv(os.path.join(args.output, '{}_init_results_single.csv'.format(args.stage)), encoding='utf-8')
-    
+
     results = [R_mad, R_mot, R_mar]
     evals_mean = np.zeros((len(evals_name), len(results)))
     evals_std = np.zeros((len(evals_name), len(results), 2))
