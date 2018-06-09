@@ -1,3 +1,3 @@
-from inlib.datastft import single_spectrogram
-from inlib.synthesize import add_noise
-from inlib.utils import angle_between
+from inlib.datastft import single_spectrogram  # NOQA
+from inlib.synthesize import add_noise  # NOQA
+from inlib.utils import angle_between  # NOQA
