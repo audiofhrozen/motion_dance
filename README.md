@@ -54,4 +54,5 @@ For real-time emulation:
 
 ## References
 
-[1]Nelson Yalta, Kazuhiro Nakadai, Tetsuya Ogata, "Sequential Deep Learning for Dancing Motion Generation", SIG-Challenge 2016
+[1] Nelson Yalta, Shinji Watanabe, Kazuhiro Nakadai, Tetsuya Ogata, "Weakly Supervised Deep Recurrent Neural Networks for Basic Dance Step Generation", [arxiv](https://arxiv.org/abs/1807.01126)
+[2] Nelson Yalta, Kazuhiro Nakadai, Tetsuya Ogata, "Sequential Deep Learning for Dancing Motion Generation", SIG-Challenge 2016
