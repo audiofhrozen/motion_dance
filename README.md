@@ -49,8 +49,9 @@ For real-time emulation:
 - vlc (optional)
 
 ## ToDo:
-- New Dataset
-- Detailed Audio information
+- New dataset
+- Detailed audio information
+- Virtual environment release
 
 ## References
 
