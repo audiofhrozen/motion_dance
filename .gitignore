@@ -10,7 +10,7 @@ exp
 data
 test*
 ellipse*
-*.txt
+notes*
 local/utillib
 local/__pycache__
 local/.ipynb_checkpoints

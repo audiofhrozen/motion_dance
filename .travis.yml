@@ -16,6 +16,6 @@ script:
 
 install:
   - pip install -U pip wheel
-  - pip install -r ./tools/test_requirements.txt
+  - pip install -r ./tools/requirements_test.txt
 
 sudo: false
