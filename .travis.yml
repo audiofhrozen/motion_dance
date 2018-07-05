@@ -14,4 +14,8 @@ matrix:
 script:
   - flake8
 
+install:
+  - pip install -U pip wheel
+  - pip install -r ./tools/test_requirements.txt
+
 sudo: false

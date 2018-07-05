@@ -1,5 +1,7 @@
 # Sequential Learning for Dance generation
 
+[![Build Status](https://travis-ci.com/Fhrozen/motion_dance.svg?branch=master)](https://travis-ci.com/Fhrozen/motion_dance)
+
 Generating dance using deep learning techniques.
 
 The proposed model is shown in the following image:
