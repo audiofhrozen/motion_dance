@@ -3,7 +3,7 @@
 import warnings
 try:
     warnings.filterwarnings('ignore')
-except Exception as e:
+except Exception as e:  # NOQA
     pass
 
 

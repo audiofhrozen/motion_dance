@@ -6,7 +6,7 @@ from __future__ import print_function
 import warnings
 try:
     warnings.filterwarnings('ignore')
-except Exception as e:
+except Exception as e:  # NOQA
     pass
 
 import argparse
