@@ -33,7 +33,7 @@ from time import sleep
 try:
     import vlc
     vlclib = True
-except Exception as e:
+except Exception as e:  # NOQA
     logging.warning('vlc library not found')
     vlclib = False
     pass
@@ -246,7 +246,7 @@ def signal_handler(signal, frame):
         try:
             ws.call(requests.StopRecording())
             ws.disconnect()
-        except Exception as e:
+        except Exception as e:  # NOQA
             pass
     try:
         os.remove(rsmpfile)
@@ -255,7 +255,7 @@ def signal_handler(signal, frame):
     if vlclib:
         try:
             vlcplayer.stop()
-        except Exception as e:
+        except Exception as e:  # NOQA
             pass
 
     logging.info('Bye')
@@ -317,7 +317,7 @@ if __name__ == '__main__':
         try:
             _, gpu_name = names_gpu[args.gpu].split('[')
             gpu_name, _ = gpu_name.split(']')
-        except Exception as e:
+        except Exception as e:  # NOQA
             gpu_name = ""
     else:
         raise OSError('OS not supported')
@@ -345,7 +345,7 @@ if __name__ == '__main__':
     flname = os.path.basename(args.track).split('.')[0]
     try:
         videolink = [x.split('\t')[1] for x in links if flname in x][0]  #
-    except Exception as e:
+    except Exception as e:  # NOQA
         videolink = None
         pass
 
