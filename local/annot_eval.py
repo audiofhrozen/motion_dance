@@ -112,7 +112,7 @@ def readfromfile(filename, folder):
     filename = filename.replace('.htr', '.txt')
     try:
         databeats = np.unique(np.loadtxt(filename))
-    except Exception as e:
+    except Exception as e:  # NOQA
         databeats = None
         pass
     return databeats
