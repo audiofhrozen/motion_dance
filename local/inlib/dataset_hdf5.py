@@ -48,17 +48,17 @@ class DanceSeqHDF5(dataset.DatasetMixin):
         logging.info('sequence: {}'.format(self.sequence))
         logging.info('Total of {} files...'.format(len(self.idxs)))
       
-  def __len__(self):
-    return len(self.idxs)
+    def __len__(self):
+        return len(self.idxs)
 
-  def get_example(self, i):
-    iDB, iFL = self.idxs[i]
-    data_labels = [None] * 3
-    with h5py.File(self.list_file[iDB], 'r') as f:
-      data_labels[0] = f[self._inputs[0]][iFL: iFL + self.sequence][None,:]
-      if self.init_step == 0:
-        data_labels[1] = np.zeros((1,71), dtype=np.float32)  # TODO(nelson): to variable size
-      else:
-        data_labels[1] = f[self._inputs[1]][iFL: iFL + self.steps]
-      data_labels[2] = f[self._inputs[1]][iFL + self.steps: iFL + self.steps + self.sequence][None,:]  
-    return data_labels
+    def get_example(self, i):
+        iDB, iFL = self.idxs[i]
+        data_labels = [None] * 3
+        with h5py.File(self.list_file[iDB], 'r') as f:
+            data_labels[0] = f[self._inputs[0]][iFL: iFL + self.sequence][None,:]
+            if self.init_step == 0:
+                data_labels[1] = np.zeros((1,71), dtype=np.float32)  # TODO(nelson): to variable size
+            else:
+                data_labels[1] = f[self._inputs[1]][iFL: iFL + self.steps]
+            data_labels[2] = f[self._inputs[1]][iFL + self.steps: iFL + self.steps + self.sequence][None,:]  
+        return data_labels
