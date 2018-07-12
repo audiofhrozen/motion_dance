@@ -36,14 +36,21 @@ For realtime emulation execute (`run_realtime.sh`).
 
 ## Requirements
 
-For training and evaluating the following libraries are required:
+For training and evaluating the following python libraries are required:
 - [chainer=>3.1.0](https://github.com/chainer/chainer)
 - [cupy=>2.1.0](https://github.com/cupy/cupy)
 - [madmom](https://github.com/CPJKU/madmom/)
-- [Beat Tracking Evaluation toolbox](https://github.com/adamstark/Beat-Tracking-Evaluation-Toolbox) or [updated](https://github.com/Fhrozen/Beat-Tracking-Evaluation-Toolbox)
+- [Beat Tracking Evaluation toolbox](https://github.com/Fhrozen/Beat-Tracking-Evaluation-Toolbox). The original code is found [here](https://github.com/adamstark/Beat-Tracking-Evaluation-Toolbox)
 - [mir_eval](https://github.com/craffel/mir_eval)
 - [transforms3d](https://github.com/matthew-brett/transforms3d)
 - h5py, numpy, soundfile, scipy, scikit-learn, pandas, colorama
+
+Install the following music libraries to convert the audio files:
+```sh
+$ sudo apt-get install libsox-fmt-mp3
+```
+
+Additionally, you may require [Marsyas](http://marsyas.info/doc/manual/marsyas-user/Building-latest-Marsyas-on-Debian_002fUbuntu.html#Building-latest-Marsyas-on-Debian_002fUbuntu) to extract the bet reference information.  
 
 For real-time emulation:
 - pyOSC (for python v2)
@@ -54,6 +61,9 @@ For real-time emulation:
 - New dataset
 - Detailed audio information
 - Virtual environment release
+
+## Acknowledgement
+- Thanks Johnson Lai for the comments	
 
 ## References
 
