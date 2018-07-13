@@ -43,7 +43,7 @@ For training and evaluating the following python libraries are required:
 - [Beat Tracking Evaluation toolbox](https://github.com/Fhrozen/Beat-Tracking-Evaluation-Toolbox). The original code is found [here](https://github.com/adamstark/Beat-Tracking-Evaluation-Toolbox)
 - [mir_eval](https://github.com/craffel/mir_eval)
 - [transforms3d](https://github.com/matthew-brett/transforms3d)
-- h5py, numpy, soundfile, scipy, scikit-learn, pandas, colorama
+- h5py, numpy, soundfile, scipy, scikit-learn, pandas
 
 Install the following music libraries to convert the audio files:
 ```sh
