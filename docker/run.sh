@@ -1,7 +1,7 @@
 #!/bin/bash
 
 docker_gpu=0
-docker_cuda=9.0
+docker_cuda=9.2
 docker_cudnn=7
 
 while test $# -gt 0
@@ -42,6 +42,7 @@ else
   image_label="dancer:cuda${docker_cuda}-cudnn${docker_cudnn}-ubuntu16.04"
 fi
 
+cd ..
 docker_image=$( docker images -q ${image_label} ) 
 if ! [[ -n $docker_image  ]]; then
   echo "Building docker image..."
@@ -50,7 +51,7 @@ if ! [[ -n $docker_image  ]]; then
     echo "Building with proxy ${HTTP_PROXY}"
     build_args="${build_args} --build-arg WITH_PROXY=${HTTP_PROXY}"
   fi 
-  (docker build ${build_args} -f local/dancer.devel -t ${image_label} .) || exit 1
+  (docker build ${build_args} -f docker/Dockerfile -t ${image_label} .) || exit 1
 fi
 
 echo "Using image ${from_image}."

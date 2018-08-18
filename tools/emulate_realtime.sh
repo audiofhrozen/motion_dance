@@ -1,4 +1,4 @@
-. ./path.sh
+. ../path.sh
 
 exp=bounce2
 net=s2s

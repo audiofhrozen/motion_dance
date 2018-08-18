@@ -18,7 +18,7 @@ from chainer import optimizers
 from chainer import serializers
 from chainer import training
 from chainer.training import extensions
-# from chainerui.extensions import CommandsExtension
+from chainerui.extensions import CommandsExtension
 from chainerui.utils import save_args
 import imp
 import importlib
@@ -36,11 +36,13 @@ model = None
 
 
 def convert(batch, device):
-    in_audio, context, nx_step = batch[0]
-    for i in range(1, len(batch)):
-        in_audio = np.concatenate((in_audio, batch[i][0]), axis=0)
-        context = np.concatenate((context, batch[i][1]), axis=0)
-        nx_step = np.concatenate((nx_step, batch[i][2]), axis=0)
+    batchsize = len(batch)
+    in_audio = [batch[x][0] for x in batchsize]
+    in_audio = np.concatenate(in_audio, axis=0)
+    context = [batch[x][1] for x in batchsize]
+    context = np.concatenate(context, axis=0)
+    nx_step = [batch[x][2] for x in batchsize]
+    nx_step = np.concatenate(nx_step, axis=0)
 
     if device >= 0:
         in_audio = chainer.cuda.to_gpu(in_audio)
@@ -162,7 +164,7 @@ def main():
     trainer.extend(extensions.ProgressBar())
 
     trainer.extend(extensions.observe_lr())
-    # trainer.extend(CommandsExtension())
+    trainer.extend(CommandsExtension())
     save_args(args, args.save)
     trainer.run()
 

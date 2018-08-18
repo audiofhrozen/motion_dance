@@ -37,7 +37,8 @@ For realtime emulation execute (`run_realtime.sh`).
 ## Requirements
 
 For training and evaluating the following python libraries are required:
-- [chainer=>3.1.0](https://github.com/chainer/chainer) and [chainerui](https://github.com/chainer/chainerui)
+- [chainer=>3.1.0](https://github.com/chainer/chainer) 
+- [chainerui](https://github.com/chainer/chainerui)
 - [cupy=>2.1.0](https://github.com/cupy/cupy)
 - [madmom](https://github.com/CPJKU/madmom/)
 - [Beat Tracking Evaluation toolbox](https://github.com/Fhrozen/Beat-Tracking-Evaluation-Toolbox). The original code is found [here](https://github.com/adamstark/Beat-Tracking-Evaluation-Toolbox)

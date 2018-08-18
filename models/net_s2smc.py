@@ -46,7 +46,7 @@ class Dancer(chainer.Chain):
             ot = xp.std(nx_step[:, i], axis=1) * batchsize  # y
             delta_sgn = xp.sign(ot - self.ot)
             if i > 0:
-                labels = xp.minimum(delta_sgn + self.delta_sgn, 1)
+                labels = xp.minimum(xp.absolute(delta_sgn + self.delta_sgn), 1)
                 labels = xp.asarray(labels, dtype=xp.int32)
                 loss2 = F.contrastive(h, self.h, labels) / sequence  # .mean_squared_error mean_absolute_error
                 if float(chainer.cuda.to_cpu(loss2.data)) > 0.:
