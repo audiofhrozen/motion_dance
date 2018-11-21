@@ -3,7 +3,6 @@ from __future__ import division
 from __future__ import print_function
 
 import chainer
-from chainer.cuda import cupy as xp
 import chainer.functions as F
 import chainer.links as L
 from sys import stdout
@@ -33,6 +32,7 @@ class Dancer(chainer.Chain):
         self.h = 0
 
     def __call__(self, variables):
+        xp = self.xp
         in_audio, curr_step, nx_step = variables
         batchsize = in_audio.shape[0]
         sequence = in_audio.shape[1]

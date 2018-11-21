@@ -48,7 +48,7 @@ cd ..
 echo ----- Exp: %exp_name%
 if %stage% leq -1 (
   echo Data Download
-  call "local\getdata.bat" 
+  call "win\getdata.bat" 
 )
 
 set trn_lst=%exp_data%\annots\train.lst
@@ -112,7 +112,6 @@ if %stage% leq 2 (
     if !errorlevel! neq 0 exit /b !errorlevel!
 )
 
-set gpu=-1
 if %stage% leq 3 (
     echo Evaluating Network
     ( dir %DATA_EXTRACT%\AUDIO\MP3\*.mp3 /s/b /a-d )>%tst_lst%
