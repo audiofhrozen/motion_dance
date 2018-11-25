@@ -67,7 +67,8 @@ if [ ${stage} -le 2 ]; then
                         --dataset "DanceSeqHDF5" \
                         --init_step ${init_step} \
                         --initOpt ${LSTM_units} ${CNN_outs} ${Net_out} \
-                        --frequency 5 || exit 1
+                        --frequency 1 \
+                        --verbose ${verbose} || exit 1
 fi
 
 if [ ${stage} -le 3 ]; then
