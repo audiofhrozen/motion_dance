@@ -44,13 +44,28 @@ if [ ${stage} -le 1 ]; then
                         --list ${exp_data}/annots/train_files_align.txt \
                         --save ${exp_data} \
                         --rot ${rot} \
-                        --snr 5 \
+                        --snr 5 10 \
                         --silence ${silence} \
                         --fps ${fps} \
                         --hop ${hop} \
                         --wlen ${wlen} \
+                        --set train \
                         --scale ${scale} || exit 1
-  #TODO: Add preparation for testing/validation during training (Need Larger dataset or to split in parts the whole sequence)
+
+  head -n 3 ${exp_data}/annots/train_files_align.txt > ${exp_data}/annots/valid_files_align.txt
+
+  data_prepare.py --type motion \
+                        --exp ${exp} \
+                        --list ${exp_data}/annots/valid_files_align.txt \
+                        --save ${exp_data} \
+                        --rot ${rot} \
+                        --snr 5 10 \
+                        --silence ${silence} \
+                        --fps ${fps} \
+                        --hop ${hop} \
+                        --wlen ${wlen} \
+                        --set valid \
+                        --scale ${scale} || exit 1
 fi
 
 if [ ${stage} -le 2 ]; then

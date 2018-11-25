@@ -126,10 +126,10 @@ def main():
         raise TypeError(e)
 
     try:
-        testset = getattr(DBClass, args.dataset)(args.folder, args.sequence, 'test', args.init_step)
+        validset = getattr(DBClass, args.dataset)(args.folder, args.sequence, 'valid', args.init_step)
     except Exception as e:
-        logging.warning('Cannot find testing files, test stage will be skipped... ')
-        testset = None
+        logging.warning('Cannot find validation files, validation stage will be skipped... ')
+        validset = None
 
     def make_optimizer(net, alpha=0.0002, beta1=0.5):
         optimizer = optimizers.Adam(alpha=alpha, beta1=beta1, amsgrad=True)
@@ -148,8 +148,8 @@ def main():
     else:
         train_iter = iterators.SerialIterator(trainset, batch_size=args.batch, shuffle=True)
 
-    if testset is not None:
-        test_iter = iterators.SerialIterator(testset, batch_size=args.batch, repeat=False, shuffle=False)
+    if validset is not None:
+        valid_iter = iterators.SerialIterator(validset, batch_size=args.batch, repeat=False, shuffle=False)
 
     # TODO(nelson): Change later the steps
     updater = BPTTUpdater(train_iter, optimizer, None, args.gpu, converter=convert)
@@ -157,13 +157,13 @@ def main():
     trainer.extend(extensions.dump_graph('main/loss'))
     frequency = args.epoch if args.frequency == -1 else max(1, args.frequency)
     trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
-    trainer.extend(extensions.LogReport())
-    if testset is not None:
-        trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu, converter=convert))
+    trainer.extend(extensions.LogReport(trigger=(100, 'iteration')))
+    if validset is not None:
+        trainer.extend(extensions.Evaluator(valid_iter, model, device=args.gpu, converter=convert))
 
     if extensions.PlotReport.available():
-        trainer.extend(extensions.PlotReport(['main/loss'], 'epoch', file_name='loss.png'))
-    trainer.extend(extensions.PrintReport(['epoch', 'main/loss', 'elapsed_time']))
+        trainer.extend(extensions.PlotReport(['main/loss', 'validation/main/loss'], 'epoch', file_name='loss.png'))
+    trainer.extend(extensions.PrintReport(['epoch', 'main/loss', 'validation/main/loss', 'elapsed_time']))
     trainer.extend(extensions.ProgressBar())
 
     trainer.extend(extensions.observe_lr())

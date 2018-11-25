@@ -77,7 +77,7 @@ def prepare_motion():
     config['slope_wav'] = (config['rng_wav'][1] - config['rng_wav'][0]) / (audio_max - audio_min)
     config['intersec_wav'] = config['rng_wav'][1] - config['slope_wav'] * audio_max
 
-    prefix = os.path.join(config['out_folder'], 'train_motion_')
+    prefix = os.path.join(config['out_folder'], '{}_motion_'.format(args.set))
     try:
         for filename in glob.glob('{}*'.format(prefix)):
             os.remove(filename)
@@ -111,6 +111,8 @@ if __name__ == '__main__':
                         help='Output Data')
     parser.add_argument('--rot', '-r', type=str,
                         help='Type of Rotations')
+    parser.add_argument('--set', type=str,
+                        help='Type of dataset')
     parser.add_argument('--type', '-t', type=str,
                         help='Type of dataset preparation')
     parser.add_argument('--snr', '-i', nargs='+', type=int,
