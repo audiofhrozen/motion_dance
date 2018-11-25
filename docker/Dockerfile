@@ -1,6 +1,10 @@
 ARG FROM_IMAGE
 
 FROM ${FROM_IMAGE}
+LABEL maintainer "Nelson Yalta <nyalta21@gmail.com>"
+
+ARG THIS_USER
+ARG THIS_UID
 
 ARG WITH_PROXY
 ENV HTTP_PROXY ${WITH_PROXY}
@@ -69,3 +73,10 @@ RUN git clone https://github.com/marsyas/marsyas.git && \
     make -j4 && \
     make install
 ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
+
+# Add user to container
+RUN if [ ! -z "${THIS_UID}"  ];then \
+    useradd -m -r -u ${THIS_UID} -g root ${THIS_USER}; \
+    fi
+
+USER ${THIS_USER}
