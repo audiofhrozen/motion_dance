@@ -77,9 +77,9 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
         len2 = data_wav[prv:loc].shape[0]
         _tmp[0:len2] = data_wav[prv:loc]
         frames = framesig(_tmp, config['wlen'], config['hop'], winfunc)
-        stft_data = logpowspec(frames, NFFT)
-        stft = single_spectrogram(data_wav[prv:loc], freq_samp, args.wlen, args.hop)
-        #hops = stft.shape[0]
+        stft = logpowspec(frames, NFFT)
+        # stft = single_spectrogram(data_wav[prv:loc], freq_samp, args.wlen, args.hop)
+        # hops = stft.shape[0]
         stft_data[i, 0] = np.swapaxes(stft, 0, 1)
     del data_wav
     stft_data = (stft_data * slope) + intersec
