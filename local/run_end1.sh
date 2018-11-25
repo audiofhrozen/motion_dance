@@ -9,7 +9,7 @@ exp_data=./exp/data/${exp}_${rot}
 
 echo "----- Exp: ${exp_name}"
 if [ ${stage} -le -1 ]; then
-  echo "Data Download"
+  echo "stage -1: Data Download"
   local/getdata.sh || exit 1
 fi
 
@@ -20,7 +20,7 @@ if [ ${stage} -le 0 ]; then
   find ${DATA_EXTRACT}/MOCAP/HTR/ -name ${exp}'_*.htr' | sort -u > ${trn_lst}
   steps_folder=${DATA_EXTRACT}/Annotations/steps
 
-  echo "----- Preparing training annotations..."
+  echo "stage 0: Preparing training annotations..."
   annot_eval.py -l ${trn_lst} \
                       -e ${exp} \
                       -o ${exp_data}/annots \
@@ -37,7 +37,7 @@ fi
 echo "----- End-to-End stage"
 
 if [ ${stage} -le 1 ]; then 
-  echo "----- Preparing training data for motion ..."
+  echo "stage 1: Preparing training data for motion ..."
   mkdir -p ${exp_data}/data ${exp_data}/minmax
   data_prepare.py --type motion \
                         --exp ${exp} \
@@ -54,7 +54,7 @@ if [ ${stage} -le 1 ]; then
 fi
 
 if [ ${stage} -le 2 ]; then
-  echo "Training Network "
+  echo "stage 2: Training Network "
   train_dance_rnn.py --folder ${exp_data}/data \
                         --sequence ${sequence}  \
                         --batch ${batch} \
@@ -71,7 +71,7 @@ if [ ${stage} -le 2 ]; then
 fi
 
 if [ ${stage} -le 3 ]; then
-  echo "Evaluating Network"
+  echo "stage 3: Evaluating Network"
   find ${DATA_EXTRACT}/AUDIO/MP3 -name '*.mp3' | sort -u > ${tst_lst}
   mkdir -p ${exp_folder}/evaluation ${exp_folder}/results
   evaluate.py --folder ${exp_folder} \
