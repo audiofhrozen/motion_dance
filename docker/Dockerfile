@@ -8,7 +8,9 @@ ARG THIS_UID
 
 ARG WITH_PROXY
 ENV HTTP_PROXY ${WITH_PROXY}
+ENV http_proxy ${WITH_PROXY}
 ENV HTTPS_PROXY ${WITH_PROXY}
+ENV https_proxy ${WITH_PROXY}
 ENV CUDA_HOME /usr/local/cuda
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
