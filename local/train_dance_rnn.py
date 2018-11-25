@@ -37,11 +37,11 @@ model = None
 
 def convert(batch, device):
     batchsize = len(batch)
-    in_audio = [batch[x][0] for x in batchsize]
+    in_audio = [batch[x][0] for x in range(batchsize)]
     in_audio = np.concatenate(in_audio, axis=0)
-    context = [batch[x][1] for x in batchsize]
+    context = [batch[x][1] for x in range(batchsize)]
     context = np.concatenate(context, axis=0)
-    nx_step = [batch[x][2] for x in batchsize]
+    nx_step = [batch[x][2] for x in range(batchsize)]
     nx_step = np.concatenate(nx_step, axis=0)
 
     if device >= 0:
@@ -142,8 +142,11 @@ def main():
 
     optimizer = make_optimizer(model)
 
-    train_iter = iterators.MultiprocessIterator(trainset, batch_size=args.batch, shuffle=True, n_processes=args.workers,
-                                                n_prefetch=args.workers)
+    if args.workers > 1:
+        train_iter = iterators.MultiprocessIterator(trainset, batch_size=args.batch, shuffle=True, n_processes=args.workers,
+                                                    n_prefetch=args.workers)
+    else:
+        train_iter = iterators.SerialIterator(trainset, batch_size=args.batch, shuffle=True)
 
     if testset is not None:
         test_iter = iterators.SerialIterator(testset, batch_size=args.batch, repeat=False, shuffle=False)

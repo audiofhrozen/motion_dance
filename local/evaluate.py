@@ -39,13 +39,14 @@ from scipy import stats
 import soundfile
 
 from inlib import add_noise
-from inlib import single_spectrogram
+from python_speech_features import framesig
+from python_speech_features import logpowspec
 
 
 def format_audio(audioname, noise, snr, freq_samp, wav_range):
     # TODO(nelson): Add these values as arguments
     audio_max = 5.
-    audio_min = -120.
+    audio_min = -230.
     slope = (config['rng_wav'][1] - config['rng_wav'][0]) / (audio_max - audio_min)
     intersec = config['rng_wav'][1] - slope * audio_max
     wavname = audioname.replace('MP3', 'WAVE')
@@ -72,9 +73,14 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
     for i in six.moves.range(audio_length):
         prv = idxs[i % args.fps] + freq_samp * int(i / args.fps)
         loc = idxs[i % args.fps + 1] + freq_samp * int(i / args.fps)
+        _tmp = np.zeros((config['frame_lenght'],), dtype=np.float32)
+        len2 = data_wav[prv:loc].shape[0]
+        _tmp[0:len2] = data_wav[prv:loc]
+        frames = framesig(_tmp, config['wlen'], config['hop'], winfunc)
+        stft_data = logpowspec(frames, NFFT)
         stft = single_spectrogram(data_wav[prv:loc], freq_samp, args.wlen, args.hop)
-        hops = stft.shape[0]
-        stft_data[i, 0, :, :hops] = np.swapaxes(stft, 0, 1)
+        #hops = stft.shape[0]
+        stft_data[i, 0] = np.swapaxes(stft, 0, 1)
     del data_wav
     stft_data = (stft_data * slope) + intersec
     return stft_data

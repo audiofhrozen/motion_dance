@@ -73,7 +73,7 @@ def prepare_motion():
     config['intersec_pos'] = config['rng_pos'][1] - config['slope_pos'] * pos_max
 
     audio_max = 5.
-    audio_min = -120.
+    audio_min = -230.
     config['slope_wav'] = (config['rng_wav'][1] - config['rng_wav'][0]) / (audio_max - audio_min)
     config['intersec_wav'] = config['rng_wav'][1] - config['slope_wav'] * audio_max
 

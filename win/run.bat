@@ -20,7 +20,7 @@ set basic_steps=1
 set frame_align=3
 set motion_align=35
 set fps=30
-set wlen=160
+set wlen=256
 set hop=80
 set frqsmp=16000
 set silence=10
@@ -32,6 +32,22 @@ set untrained=0
 set LSTM_units=500
 set CNN_outs=65
 set network=models\net_%net%.py
+
+rem Argument parser routine
+:loop
+if not "%1"=="" (
+    set "test=%1"
+    if /i "!test:~0,2!"=="--" (
+        set var=!test:~2!
+        if defined !var! (
+            set "!var!=%2"
+            shift
+        )
+    )
+    shift 
+    goto loop
+)
+rem end routine
 
 if "%rot%" == "quat" set Net_out=71
 if "%rot%" == "euler" set Net_out=54
@@ -47,7 +63,7 @@ set exp_data=exp\data\%exp%_%rot%
 cd ..
 echo ----- Exp: %exp_name%
 if %stage% leq -1 (
-  echo Data Download
+  echo stage -1: Data Download
   call "win\getdata.bat" 
 )
 
@@ -58,7 +74,7 @@ if %stage% leq 0 (
     set steps_folder=%DATA_EXTRACT&%\Annotations\steps
     if not exist %exp_data%\annots md %exp_data%\annots 
     ( dir %DATA_EXTRACT%\MOCAP\HTR\%exp%_*.htr /s/b /a-d )>%trn_lst%
-    echo ----- Preparing training annotations.
+    echo stage 0: Preparing training annotations.
     python local/annot_eval.py -l %trn_lst% ^
                                 -e %exp% ^
                                 -o %exp_data%\annots ^
@@ -73,9 +89,9 @@ if %stage% leq 0 (
                                 --verbose %verbose%
     if !errorlevel! neq 0 exit /b !errorlevel!
 )
-goto eof
+
 if %stage% leq 1 ( 
-    echo ----- Preparing training data for motion ...
+    echo stage 1: Preparing training data for motion ...
     if not exist %exp_data%\data md %exp_data%\data 
     if not exist %exp_data%\minmax md %exp_data%\minmax
     python local/data_prepare.py --type motion ^
@@ -95,7 +111,7 @@ if %stage% leq 1 (
 )
 
 if %stage% leq 2 (
-    echo Training Network
+    echo stage 2: Training Network
     python local/train_dance_rnn.py --folder %exp_data%\data ^
                                     --sequence %sequence%  ^
                                     --batch %batch% ^
@@ -108,12 +124,13 @@ if %stage% leq 2 (
                                     --dataset DanceSeqHDF5 ^
                                     --init_step %init_step% ^
                                     --initOpt %LSTM_units% %CNN_outs% %Net_out% ^
-                                    --frequency 5
+                                    --frequency 1 ^
+                                    --verbose %verbose%
     if !errorlevel! neq 0 exit /b !errorlevel!
 )
 
 if %stage% leq 3 (
-    echo Evaluating Network
+    echo stage 3: Evaluating Network
     ( dir %DATA_EXTRACT%\AUDIO\MP3\*.mp3 /s/b /a-d )>%tst_lst%
     if not exist %exp_folder%\evaluation md %exp_folder%\evaluation 
     if not exist %exp_folder%\results md %exp_folder%\results

@@ -11,11 +11,12 @@ except Exception as e:
 
 from inlib import add_noise
 from inlib import angle_between
-from inlib import single_spectrogram
 import logging
 import numpy as np
 from numpy import linalg as LA
 import os
+from python_speech_features.sigproc import framesig
+from python_speech_features.sigproc import logpowspec
 import soundfile
 import sys
 from transforms3d.euler import euler2quat
@@ -70,19 +71,20 @@ def format_motion_audio(filename, config, snr=None, noise='white', align=0):
     silence_wav = np.random.rand(config['silence'] * config['freq']).astype(np.float32) * (10 ** -5)
     data_wav = np.concatenate((silence_wav, data_wav, silence_wav))
     data_wav = add_noise(data_wav, noise, snr)
-
+    winfunc=lambda x:np.hamming(x)
+    NFFT = int(2**(np.ceil(np.log2(config['wlen']))))
     for frame in range(position_data.shape[0]):
         index_1 = int(int(frame / config['fps']) * config['freq'] + config['indexes'][int(frame % config['fps'])])
         index_2 = int(int(frame / config['fps']) * config['freq'] + config['indexes'][int(frame % config['fps']) + 1])
         _tmp = np.zeros((config['frame_lenght'],), dtype=np.float32)
         len2 = data_wav[index_1: index_2].shape[0]
         _tmp[0:len2] = data_wav[index_1: index_2]
-        stft_data = single_spectrogram(_tmp, config['freq'], config['wlen'], config['hop'])
-        stft_data = stft_data * config['slope_wav'] + config['intersec_wav']
+        frames = framesig(_tmp, config['wlen'], config['hop'], winfunc)
+        stft_data = logpowspec(frames, NFFT)
         if frame == 0:
             audiodata = np.zeros((position_data.shape[0], 1, stft_data.shape[1], stft_data.shape[0]), dtype=np.float32)
         audiodata[frame, 0] = np.swapaxes(stft_data, 0, 1)
-
+    audiodata = audiodata * config['slope_wav'] + config['intersec_wav']
     return audiodata, position_data
 
 
