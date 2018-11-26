@@ -58,20 +58,38 @@ if ! [[ -n $docker_image  ]]; then
   (docker build ${build_args} -f docker/Dockerfile -t ${image_label} .) || exit 1
 fi
 
+this_time="$(date '+%Y%m%dT%H%M')"
+if [ "${docker_gpu}" == "-1" ]; then
+  cmd0="docker"
+  container_name="dancer_cpu_${this_time}"
+else
+  # --rm erase the container when the training is finished.
+  cmd0="NV_GPU='${docker_gpu}' nvidia-docker"
+  container_name="dancer_gpu${docker_gpu//,/_}_${this_time}"
+fi
+
 echo "Using image ${from_image}."
 vol="-v $PWD:/motion_dance " # <=Folder to save data
 
-cmd1="cd /motion_dance"
-cmd2="./run.sh $@"
+cmd="cd /motion_dance"
+cmd="${cmd}; ./run.sh $@"
 
-cmd="${cmd1}; ${cmd2}"
-if [ "${docker_gpu}" == "-1" ]; then
-  cmd="docker run -i --rm --name dancer_cpu ${vol} ${image_label} /bin/bash -c '${cmd}'"
-else
-  cmd="NV_GPU='${docker_gpu}' nvidia-docker run -i --rm --name dancer_gpu${docker_gpu} ${vol} ${image_label} /bin/bash -c '${cmd}'"
-fi
+cmd="${cmd0} run -i --rm --name ${container_name} ${vol} ${image_label} /bin/bash -c '${cmd}'"
+
+trap ctrl_c INT
+
+function ctrl_c() {
+        echo "** Kill docker container ${container_name}"
+        docker rm -f ${container_name}
+}
+
 echo "Executing application in Docker"
 echo ${cmd}
-eval ${cmd}
+eval ${cmd} &
+PROC_ID=$!
+
+while kill -0 "$PROC_ID" 2> /dev/null; do
+    sleep 1
+done
 
 echo "`basename $0` done."
