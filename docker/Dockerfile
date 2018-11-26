@@ -60,7 +60,8 @@ RUN pip install -U numpy \
                 scikit-learn \
                 colorama \
                 madmom \
-                chainerui
+                chainerui \
+                python_speech_features
 
 RUN cd /usr/local/lib/python2.7/dist-packages && \
     git clone https://github.com/Fhrozen/BTET.git

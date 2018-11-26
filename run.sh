@@ -59,7 +59,7 @@ done
 frame_align=3
 motion_align=35
 fps=30
-wlen=160
+wlen=256
 hop=80
 frqsmp=16000
 silence=10
