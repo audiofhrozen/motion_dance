@@ -39,8 +39,8 @@ from scipy import stats
 import soundfile
 
 from inlib import add_noise
-from python_speech_features import framesig
-from python_speech_features import logpowspec
+from python_speech_features.sigproc import framesig
+from python_speech_features.sigproc import logpowspec
 
 
 def format_audio(audioname, noise, snr, freq_samp, wav_range):
@@ -70,13 +70,15 @@ def format_audio(audioname, noise, snr, freq_samp, wav_range):
     audio_length = np.ceil(data_wav.shape[0] * args.fps / args.freq).astype(np.int)
     stft_data = np.ones((audio_length, 1, 129, 5), dtype=np.float32) * config['rng_wav'][0]
 
+    NFFT = int(2**(np.ceil(np.log2(config['wlen']))))
+
     for i in six.moves.range(audio_length):
         prv = idxs[i % args.fps] + freq_samp * int(i / args.fps)
         loc = idxs[i % args.fps + 1] + freq_samp * int(i / args.fps)
         _tmp = np.zeros((config['frame_lenght'],), dtype=np.float32)
         len2 = data_wav[prv:loc].shape[0]
         _tmp[0:len2] = data_wav[prv:loc]
-        frames = framesig(_tmp, config['wlen'], config['hop'], winfunc)
+        frames = framesig(_tmp, config['wlen'], config['hop'], winfunc=lambda x: np.hamming(x))
         stft = logpowspec(frames, NFFT)
         # stft = single_spectrogram(data_wav[prv:loc], freq_samp, args.wlen, args.hop)
         # hops = stft.shape[0]

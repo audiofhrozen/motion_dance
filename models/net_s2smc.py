@@ -48,7 +48,8 @@ class Dancer(chainer.Chain):
             if i > 0:
                 labels = xp.minimum(xp.absolute(delta_sgn + self.delta_sgn), 1)
                 labels = xp.asarray(labels, dtype=xp.int32)
-                loss2 = F.contrastive(h, self.h, labels, margin=3.0) / sequence  # .mean_squared_error mean_absolute_error
+                loss2 = F.contrastive(h, self.h, labels, margin=3.0) / sequence
+                # .mean_squared_error mean_absolute_error
                 if float(chainer.cuda.to_cpu(loss2.data)) > 0.:
                     loss += loss2  # F.mean_squared_error mean_absolute_error
             self.h = h

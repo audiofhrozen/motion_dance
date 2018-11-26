@@ -71,7 +71,6 @@ def format_motion_audio(filename, config, snr=None, noise='white', align=0):
     silence_wav = np.random.rand(config['silence'] * config['freq']).astype(np.float32) * (10 ** -5)
     data_wav = np.concatenate((silence_wav, data_wav, silence_wav))
     data_wav = add_noise(data_wav, noise, snr)
-    winfunc=lambda x:np.hamming(x)
     NFFT = int(2**(np.ceil(np.log2(config['wlen']))))
     for frame in range(position_data.shape[0]):
         index_1 = int(int(frame / config['fps']) * config['freq'] + config['indexes'][int(frame % config['fps'])])
@@ -79,7 +78,7 @@ def format_motion_audio(filename, config, snr=None, noise='white', align=0):
         _tmp = np.zeros((config['frame_lenght'],), dtype=np.float32)
         len2 = data_wav[index_1: index_2].shape[0]
         _tmp[0:len2] = data_wav[index_1: index_2]
-        frames = framesig(_tmp, config['wlen'], config['hop'], winfunc)
+        frames = framesig(_tmp, config['wlen'], config['hop'], winfunc=lambda x: np.hamming(x))
         stft_data = logpowspec(frames, NFFT)
         if frame == 0:
             audiodata = np.zeros((position_data.shape[0], 1, stft_data.shape[1], stft_data.shape[0]), dtype=np.float32)

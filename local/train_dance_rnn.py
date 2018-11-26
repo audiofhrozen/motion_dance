@@ -143,7 +143,8 @@ def main():
     optimizer = make_optimizer(model)
 
     if args.workers > 1:
-        train_iter = iterators.MultiprocessIterator(trainset, batch_size=args.batch, shuffle=True, n_processes=args.workers,
+        train_iter = iterators.MultiprocessIterator(trainset, batch_size=args.batch, shuffle=True,
+                                                    n_processes=args.workers,
                                                     n_prefetch=args.workers)
     else:
         train_iter = iterators.SerialIterator(trainset, batch_size=args.batch, shuffle=True)
