@@ -35,7 +35,7 @@ def add_noise(_AUDIO, _NOISE='clean', _SNR=None):
                 logging.warning(
                     """The noise file lenght is shorter than the audio file,
                     repeting the noise file to fit the audio file...""")
-                rep = int(np.ceil(_LEN / noise.shape[0]))
+                rep = int(np.ceil(_LEN / noise.shape[0]) + 1)
                 noise = np.tile(noise, rep)
             ii32 = np.iinfo(np.int32)
             max_range = np.amin((ii32.max - 1, noise.shape[0] - _LEN))  # Int32 Protection

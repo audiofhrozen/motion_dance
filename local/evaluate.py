@@ -250,7 +250,8 @@ def main():
                         else:
                             raise TypeError('OS not supported')
                 for snr in list_snr:
-                    logging.info('Forwarding file: {} with noise: {} at snr: {}'.format(audiofile, noise, snr))
+                    logging.info('Forwarding file: {} with noise: {} at snr: {}'.format(
+                        audiofile, os.path.basename(noise), snr))
                     audio = format_audio(audiofile, noise, snr, args.freq, config['rng_wav'])
                     predicted_motion = np.zeros((audio.shape[0], args.initOpt[2]), dtype=np.float32)
                     feats = np.zeros((audio.shape[0] - 1, args.initOpt[1]), dtype=np.float32)
