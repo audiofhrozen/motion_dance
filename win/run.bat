@@ -112,7 +112,7 @@ if %stage% leq 1 (
 
 if %stage% leq 2 (
     echo stage 2: Training Network
-    python local/train_dance_rnn.py --folder %exp_data%\data ^
+    python local/train_rnn.py --folder %exp_data%\data ^
                                     --sequence %sequence%  ^
                                     --batch %batch% ^
                                     --gpu %gpu% ^

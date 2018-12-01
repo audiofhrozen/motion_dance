@@ -78,7 +78,6 @@ class BPTTUpdater(training.updater.StandardUpdater):
         train_batch = self.converter(train_iter.next(), self.device)
         optimizer.target.cleargrads()
         loss = optimizer.target(train_batch)
-        chainer.report({'loss': loss}, optimizer.target)
         loss.backward()
         loss.unchain_backward()
         optimizer.update()
@@ -149,22 +148,21 @@ def main():
     else:
         train_iter = iterators.SerialIterator(trainset, batch_size=args.batch, shuffle=True)
 
-    if validset is not None:
-        valid_iter = iterators.SerialIterator(validset, batch_size=args.batch, repeat=False, shuffle=False)
-
     # TODO(nelson): Change later the steps
     updater = BPTTUpdater(train_iter, optimizer, None, args.gpu, converter=convert)
     trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.save)
     trainer.extend(extensions.dump_graph('main/loss'))
     frequency = args.epoch if args.frequency == -1 else max(1, args.frequency)
-    trainer.extend(extensions.snapshot(), trigger=(frequency, 'epoch'))
+    trainer.extend(extensions.snapshot(
+        filename='snaphot_epoch_{.updater.epoch}'), trigger=(frequency, 'epoch'))
     trainer.extend(extensions.LogReport(trigger=(100, 'iteration')))
     if validset is not None:
-        trainer.extend(extensions.Evaluator(valid_iter, model, device=args.gpu, converter=convert))
+        valid_iter = iterators.SerialIterator(validset, batch_size=args.batch, repeat=False, shuffle=False)
+        trainer.extend(extensions.Evaluator(valid_iter, model, device=args.gpu, converter=convert), trigger=(100, 'iteration'))
 
     if extensions.PlotReport.available():
         trainer.extend(extensions.PlotReport(['main/loss', 'validation/main/loss'], 'epoch', file_name='loss.png'))
-    trainer.extend(extensions.PrintReport(['epoch', 'main/loss', 'validation/main/loss', 'elapsed_time']))
+    trainer.extend(extensions.PrintReport(['epoch', 'iteration', 'main/loss', 'validation/main/loss', 'elapsed_time']))
     trainer.extend(extensions.ProgressBar())
 
     trainer.extend(extensions.observe_lr())

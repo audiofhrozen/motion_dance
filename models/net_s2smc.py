@@ -34,14 +34,13 @@ class Dancer(chainer.Chain):
     def __call__(self, variables):
         xp = self.xp
         in_audio, curr_step, nx_step = variables
-        batchsize = in_audio.shape[0]
-        sequence = in_audio.shape[1]
-        self.loss = loss = 0
+        batchsize, sequence = in_audio.shape[0:2]
+        self.loss = loss_mse = loss_ctte = 0
         state = self.state
         self.ot = xp.std(curr_step, axis=1)
         for i in range(sequence):
             h, state, y = self.forward(state, curr_step, self.audiofeat(in_audio[:, i]), True)
-            loss += F.mean_squared_error(nx_step[:, i], y)
+            loss_mse += F.mean_squared_error(nx_step[:, i], y)
             curr_step = y
             ot = xp.std(nx_step[:, i], axis=1) * batchsize  # y
             delta_sgn = xp.sign(ot - self.ot)
@@ -51,11 +50,16 @@ class Dancer(chainer.Chain):
                 loss2 = F.contrastive(h, self.h, labels, margin=3.0) / sequence
                 # .mean_squared_error mean_absolute_error
                 if float(chainer.cuda.to_cpu(loss2.data)) > 0.:
-                    loss += loss2  # F.mean_squared_error mean_absolute_error
+                    loss_ctte += loss2  # F.mean_squared_error mean_absolute_error
             self.h = h
             self.ot = ot
             self.delta_sgn = delta_sgn
+        loss = loss_mse + loss_ctte 
         self.loss = loss
+        chainer.report({'loss': loss,
+                        'loss_mse': loss_mse,
+                        'loss_ctte': loss_ctte
+                        }, self)
         stdout.write('loss={:.04f}\r'.format(float(chainer.cuda.to_cpu(loss.data))))
         stdout.flush()
         return self.loss

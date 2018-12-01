@@ -32,12 +32,15 @@ class Dancer(chainer.Chain):
         in_audio, context, nx_step = variables
         self.loss = loss = 0
         state = self.state
-        for i in range(in_audio.shape[1]):
+        batchsize, sequence = in_audio.shape[0:2]
+        for i in range(sequence):
             h = self.audiofeat(in_audio[:, i])
             state, y = self.forward(state, context, h)
             loss += F.mean_squared_error(nx_step[:, i], y)  # F.mean_squared_error mean_absolute_error
             context = y
         self.loss = loss
+        chainer.report({'loss': loss
+                        }, self)
         stdout.write('loss={:.04f}\r'.format(float(chainer.cuda.to_cpu(loss.data))))
         stdout.flush()
         return self.loss

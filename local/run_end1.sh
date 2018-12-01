@@ -52,14 +52,14 @@ if [ ${stage} -le 1 ]; then
                         --set train \
                         --scale ${scale} || exit 1
 
-  head -n 3 ${exp_data}/annots/train_files_align.txt > ${exp_data}/annots/valid_files_align.txt
+  head -n 2 ${exp_data}/annots/train_files_align.txt > ${exp_data}/annots/valid_files_align.txt
 
   data_prepare.py --type motion \
                         --exp ${exp} \
                         --list ${exp_data}/annots/valid_files_align.txt \
                         --save ${exp_data} \
                         --rot ${rot} \
-                        --snr 5 10 \
+                        --snr 20 \
                         --silence ${silence} \
                         --fps ${fps} \
                         --hop ${hop} \
@@ -70,7 +70,7 @@ fi
 
 if [ ${stage} -le 2 ]; then
   echo "stage 2: Training Network "
-  train_dance_rnn.py --folder ${exp_data}/data \
+  train_rnn.py --folder ${exp_data}/data \
                         --sequence ${sequence}  \
                         --batch ${batch} \
                         --gpu ${gpu} \
