@@ -158,7 +158,7 @@ def main():
     trainer.extend(extensions.LogReport(trigger=(100, 'iteration')))
     if validset is not None:
         valid_iter = iterators.SerialIterator(validset, batch_size=args.batch, repeat=False, shuffle=False)
-        trainer.extend(extensions.Evaluator(valid_iter, model, device=args.gpu, converter=convert), trigger=(100, 'iteration'))
+        trainer.extend(extensions.Evaluator(valid_iter, model, device=args.gpu, converter=convert))
 
     if extensions.PlotReport.available():
         trainer.extend(extensions.PlotReport(['main/loss', 'validation/main/loss'], 'epoch', file_name='loss.png'))
