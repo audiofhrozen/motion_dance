@@ -7,8 +7,6 @@ cache:
 matrix:
   include:
     - os: linux
-      python: "2.7"
-    - os: linux
       python: "3.6"
 
 script:
@@ -16,6 +14,8 @@ script:
 
 install:
   - pip install -U pip wheel
-  - pip install -r ./tools/requirements_test.txt
+  - pip install -e ".[test]"
+
+  - pip install -U flake8
 
 sudo: false

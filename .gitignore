@@ -18,3 +18,7 @@ local/do*
 local/BTET*
 local/run.pl
 extras/*
+venv*
+*.done
+
+*.egg*

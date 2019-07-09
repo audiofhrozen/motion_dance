@@ -1,8 +1,8 @@
 @echo off
 
 set DATA_TGZ=%DATA_ROOT%\tgz
-set DATA_URL="'https://onedrive.live.com/download?cid=076F0D2E8DDC9958&resid=76F0D2E8DDC9958%%2112594&authkey=ANMZUSswyGhaLwo'"
-
+set DATA_URL="'https://onedrive.live.com/download?cid=076F0D2E8DDC9958&resid=76F0D2E8DDC9958%2112594&authkey=ANMZUSswyGhaLwo'"
+               
 if not exist %DATA_EXTRACT% md %DATA_EXTRACT%
 if not exist %DATA_TGZ% md %DATA_TGZ%
 
