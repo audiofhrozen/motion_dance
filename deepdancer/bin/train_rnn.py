@@ -1,4 +1,4 @@
-#!/usr/bin/python -u
+#!/usr/bin/env python
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -18,8 +18,8 @@ from chainer import optimizers
 from chainer import serializers
 from chainer import training
 from chainer.training import extensions
-from chainerui.extensions import CommandsExtension
-from chainerui.utils import save_args
+# from chainerui.extensions import CommandsExtension
+# from chainerui.utils import save_args
 import imp
 import importlib
 import logging
@@ -70,6 +70,7 @@ class BPTTUpdater(training.updater.StandardUpdater):
         super(BPTTUpdater, self).__init__(
             train_iter, optimizer, device=device, converter=converter)
         self.bprop_len = bprop_len
+        self.device = device
 
     def update_core(self):
         loss = 0
@@ -87,7 +88,7 @@ def main():
     global model
     logging.info('Training model: {}'.format(args.network))
     net = imp.load_source('Network', args.network)
-    audionet = imp.load_source('Network', './models/audio_nets.py')
+    audionet = imp.load_source('Network', './deepdancer/models/audio_nets.py')
     model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
     if args.gpu >= 0:
         if chainer.cuda.available:
@@ -117,7 +118,7 @@ def main():
     logging.info('Minibatch-size: {}'.format(args.batch))
     logging.info('# epoch: {}'.format(args.epoch))
 
-    DBClass = importlib.import_module('inlib.dataset_hdf5')
+    DBClass = importlib.import_module('deepdancer.utils.dataset_hdf5')
     try:
         trainset = getattr(DBClass, args.dataset)(args.folder, args.sequence, 'train', args.init_step)
     except Exception as e:
@@ -166,8 +167,8 @@ def main():
     trainer.extend(extensions.ProgressBar())
 
     trainer.extend(extensions.observe_lr())
-    trainer.extend(CommandsExtension())
-    save_args(args, args.save)
+    # trainer.extend(CommandsExtension())
+    # save_args(args, args.save)
     trainer.run()
 
     if not os.path.exists(args.save):

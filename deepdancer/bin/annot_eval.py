@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -17,11 +17,11 @@ import os
 import platform
 
 import beat_evaluation_toolbox as be
+from deepdancer.motion import calculate_rom
+from deepdancer.motion import extract_beats
+from deepdancer.motion import JOINTS
+from deepdancer.motion import motionread
 from madmom.features import beats
-from motion_format import calculate_rom
-from motion_format import extract_beats
-from motion_format import JOINTS
-from motion_format import motionread
 
 import multiprocessing as mp
 import numpy as np

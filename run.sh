@@ -41,7 +41,7 @@ featextract=${feats}Feat
 
 LSTM_units=500
 CNN_outs=65
-network="./models/net_${net}.py"
+network="./deepdancer/models/net_${net}.py"
 
 if [ rot=='quat' ]; then
   Net_out=71

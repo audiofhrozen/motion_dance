@@ -9,8 +9,8 @@ try:
 except Exception as e:
     pass
 
-from inlib import add_noise
-from inlib import angle_between
+from deepdancer.utils import add_noise
+from deepdancer.utils import angle_between
 import logging
 import numpy as np
 from numpy import linalg as LA

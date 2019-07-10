@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -13,14 +13,15 @@ import argparse
 import glob
 import h5py
 import logging
-from motion_format import Configuration
-from motion_format import format_motion_audio
-from motion_format import JOINTS
-from motion_format import motionread
 import numpy as np
 import os
 import platform
 import six
+
+from deepdancer.motion import Configuration
+from deepdancer.motion import format_motion_audio
+from deepdancer.motion import JOINTS
+from deepdancer.motion import motionread
 
 
 def calculate_minmax(fileslist):
