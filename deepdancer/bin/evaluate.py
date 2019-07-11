@@ -12,7 +12,7 @@ try:
 except Exception as e:
     pass
 
-import BTET.beat_evaluation_toolbox as be
+import beat_evaluation_toolbox as be
 import chainer
 import glob
 import h5py
@@ -27,10 +27,10 @@ from chainer import cuda
 from chainer import serializers
 from chainer import Variable
 
-from motion_format import calculate_rom
-from motion_format import Configuration
-from motion_format import extract_beats
-from motion_format import render_motion
+from deepdancer.motion import calculate_rom
+from deepdancer.motion import Configuration
+from deepdancer.motion import extract_beats
+from deepdancer.motion import render_motion
 
 import numpy as np
 import pandas
@@ -38,7 +38,7 @@ from scipy import signal
 from scipy import stats
 import soundfile
 
-from inlib import add_noise
+from deepdancer.utils import add_noise
 from python_speech_features.sigproc import framesig
 from python_speech_features.sigproc import logpowspec
 
@@ -171,7 +171,7 @@ def main():
     logging.info('Using gpu {}'.format(args.gpu))
 
     net = imp.load_source('Network', args.network)
-    audionet = imp.load_source('Network', os.path.join('models', 'audio_nets.py'))
+    audionet = imp.load_source('Network', os.path.join('./deepdancer/models', 'audio_nets.py'))
     model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
     serializers.load_hdf5(args.model, model)
     logging.info('Loading pretrained model from {}'.format(args.model))

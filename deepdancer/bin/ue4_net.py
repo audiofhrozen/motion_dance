@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import warnings
 try:
@@ -14,9 +14,11 @@ from chainer import serializers
 from chainer import Variable
 import h5py
 import imp
-from inlib.audio import single_spectrogram
+# from deepdancer.utils.audio import single_spectrogram
+from python_speech_features.sigproc import framesig
+from python_speech_features.sigproc import logpowspec
 import logging
-from motion_format import render_motion
+from deepdancer.motion import render_motion
 import numpy as np
 import os
 import platform
@@ -76,18 +78,20 @@ def datafeed():
     slope = (rng[1] - rng[0]) / (audio_max - audio_min)
     intersec = rng[1] - slope * audio_max
     data_w.put('start')
-    # sleep(0.5)
+
     if vlclib:
         vlcplayer.play()
     if enable_record:
         ws.call(requests.StartRecording())
+    NFFT = int(2**(np.ceil(np.log2(256))))
     while loc < data_wav.shape[0]:
         # t = time.time()
         prv = idxs[i] + fs * sec
         loc = idxs[i + 1] + fs * sec
-        stft_data = single_spectrogram(data_wav[prv:loc], fs, 160, 80)
+        frames = framesig(data_wav[prv:loc], 256, 80, winfunc=lambda x: np.hamming(x))
+        stft_data = logpowspec(frames, NFFT) # , fs, 160, 80)
         stft_data = (stft_data * slope) + intersec
-        stft_data = np.swapaxes(stft_data, 0, 1)
+        stft_data = np.swapaxes(stft_data, 0, 1).astype(np.float32)
         if stft_data.shape[1] != 5:
             stft_data = np.ones((129, 5), dtype=np.float32) * rng[0]
             data_w.put((0, stft_data.copy()))
@@ -106,6 +110,7 @@ def datafeed():
 
 def netdancer():
     if pyver3:
+        print(args.host, args.port_osc)
         c = udp_client.SimpleUDPClient(args.host, args.port_osc)
     else:
         c = OSC.OSCClient()
@@ -120,7 +125,7 @@ def netdancer():
     intersec_pos = rng_pos[1] - slope_pos * pos_max
 
     net = imp.load_source('Network', args.model)
-    audionet = imp.load_source('Network', './models/audio_nets.py')
+    audionet = imp.load_source('Network', './deepdancer/models/audio_nets.py')
     model = net.Dancer(args.initOpt, getattr(audionet, args.encoder))
     ext = os.path.basename(args.pretrained).split('.')
     ext = ext[1] if len(ext) > 1 else None
@@ -140,6 +145,7 @@ def netdancer():
     state = model.state
     start = False
     config = {'rot': 'quat'}
+    rot = 'quat'
     frame = 0
     max_frames = 12000
     feats = np.zeros((max_frames, args.initOpt[1]))
@@ -154,11 +160,14 @@ def netdancer():
                 break
             elif inp == 'start':
                 start = True
+                fn = os.path.basename(args.track).split('.')[0]
+                expname = args.pretrained.split('exp/')[1]
+                expname = expname.split('/')
+                expname = '{}_{}'.format(expname[0], expname[1])
                 if not pyver3:
                     oscmsg = OSC.OSCMessage()
                     oscmsg.setAddress('WidgetTV')
                     if videolink is None:
-                        fn = os.path.basename(args.track).split('.')[0]
                         oscmsg.append('file:///D:/nyalta/Documents/black/index.html')
                         c.send(oscmsg)
                         oscmsg = OSC.OSCMessage()
@@ -168,14 +177,24 @@ def netdancer():
                     else:
                         oscmsg.append(youtube_link.format(videolink))
                         c.send(oscmsg)
-
-                    expname = args.pretrained.split('exp/')[1]
-                    expname = expname.split('/')
-                    expname = '{}_{}'.format(expname[0], expname[1])
                     oscmsg = OSC.OSCMessage()
                     oscmsg.setAddress('ExpName')
                     oscmsg.append(expname.replace('_', ' '))
                     c.send(oscmsg)
+                else:
+                    oscmsg = osc_message_builder.OscMessageBuilder(address='WidgetTV')
+                    if videolink is None:
+                        oscmsg.add_arg('file:///D:/nyalta/Documents/black/index.html')
+                        c.send(oscmsg.build())
+                        oscmsg = osc_message_builder.OscMessageBuilder(address='WidgetTV')
+                        oscmsg.add_arg('file:///D:/nyalta/Documents/black/index.html?dc={}'.format(fn))
+                        c.send(oscmsg.build())
+                    else:
+                        oscmsg.add_arg(youtube_link.format(videolink))
+                        c.send(oscmsg.build())
+                    oscmsg = osc_message_builder.OscMessageBuilder(address='ExpName')
+                    oscmsg.add_arg(expname.replace('_', ' '))
+                    c.send(oscmsg.build())
                 continue
             elif inp == 'end':
                 if enable_record:
@@ -188,9 +207,12 @@ def netdancer():
                     f.create_dataset('feats', data=feats[0:frame])
                     f.create_dataset('steps', data=steps[0:frame])
                 # osc_message_buildercmsg = OSC.OSCMessage()
-                oscmsg.setAddress('ExpName')
-                oscmsg.append('ExpName')
-                c.send(oscmsg)
+                if pyver3:
+                    pass
+                else:
+                    oscmsg.setAddress('ExpName')
+                    oscmsg.append('ExpName')
+                    c.send(oscmsg)
                 break
 
         if start:
@@ -207,7 +229,7 @@ def netdancer():
 
             current_step = chainer.cuda.to_cpu(current_step.data)
             predicted_motion = (current_step - intersec_pos) / slope_pos
-            rdmt = render_motion(predicted_motion, config, scale=args.height)
+            rdmt = render_motion(predicted_motion, rot, scale=args.height)
             if frame < max_frames:
                 feats[frame] = chainer.cuda.to_cpu(_h.data)
                 steps[frame] = rdmt[0]
@@ -337,7 +359,7 @@ if __name__ == '__main__':
     rng_pos = [-0.9, 0.9]
     rng = [-0.9, 0.9]
     audio_max = 5.
-    audio_min = -120.
+    audio_min = -230.
     xp = cuda.cupy
     DATA_FOLDER = os.environ['DATA_EXTRACT']
     with open('{}/Annotations/youtube_links.txt'.format(DATA_FOLDER)) as f:

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import warnings
 try:
@@ -11,11 +11,18 @@ import argparse
 import h5py
 import logging
 import numpy as np
-import OSC  # install pyOSC
 import signal
 import sys
 from sys import stdout
 from time import sleep
+
+if sys.version_info[0] < 3:
+    import OSC  # install python-osc
+    pyver3 = False
+else:
+    from pythonosc import osc_message_builder
+    from pythonosc import udp_client
+    pyver3 = True
 
 
 list_address = ['PosBody', 'RotPelvis', 'RotHead', 'RotNeck',
@@ -28,7 +35,7 @@ _PARTS = ['pelvis', 'pelvis', 'head', 'neck_01', 'spine_01', 'spine_02', 'uppera
           'lowerarm_r', 'thigh_l', 'thigh_r', 'calf_l', 'calf_r', 'foot_l', 'foot_r', 'clavicle_l', 'clavicle_r']
 
 characters = ['DNN']  # DNN
-_SERVER_IP = '192.168.170.110'
+_SERVER_IP = '192.168.170.202'
 _HEIGHT_CH = 100.0
 
 
@@ -40,8 +47,8 @@ def signal_handler(signal, frame):
 
 def from_nn_file(filename):
     with h5py.File(filename, 'r') as f:
-        _motion = np.zeros(f['predicted'].shape, dtype=np.float32)
-        np.copyto(_motion, f['predicted'])  # predicted
+        _motion = np.zeros(f['motion'].shape, dtype=np.float32)
+        np.copyto(_motion, f['motion'])  # predicted
     num_frames, _ = _motion.shape
     _ROTATIONS = np.zeros((len(_PARTS), num_frames, 3), dtype=np.float32)
     for i in range(len(list_address)):
@@ -71,22 +78,40 @@ def from_htr_file(filename):
 
 def tx_osc(rotations):
     num_frames = rotations.shape[1]
-    c = OSC.OSCClient()
-    c.connect((_SERVER_IP, args.port))
+    if pyver3:
+        c = udp_client.SimpleUDPClient(_SERVER_IP, args.port)
+    else:
+        c = OSC.OSCClient()
+        c.connect((_SERVER_IP, args.port))
 
     for frame in range(num_frames):
         for addr in range(len(list_address)):
-            oscmsg = OSC.OSCMessage()
-            oscmsg.setAddress(characters[0])
-            oscmsg.append(list_address[addr])
-            if addr == 0:
-                msg = [rotations[addr, frame, 0] / 10.0, rotations[addr, frame, 1] / -10.0,
-                       rotations[addr, frame, 2] / 10.0 + _HEIGHT_CH]
+            if pyver3:
+                oscmsg = osc_message_builder.OscMessageBuilder(address=characters[0])
+                oscmsg.add_arg(list_address[addr])
+                if addr == 0:
+                    oscmsg.add_arg(float(rotations[addr, frame, 0] / 10.0))
+                    oscmsg.add_arg(float(rotations[addr, frame, 1] / -10.0))
+                    oscmsg.add_arg(float(rotations[addr, frame, 2] / 10.0 + _HEIGHT_CH))
+                else:
+                    oscmsg.add_arg(float(rotations[addr, frame, 0]))
+                    oscmsg.add_arg(float(rotations[addr, frame, 1] * -1.))
+                    oscmsg.add_arg(float(rotations[addr, frame, 2] * -1.))
+                c.send(oscmsg.build())
             else:
-                msg = [rotations[addr, frame, 0], rotations[addr, frame, 1] * -1,
-                       rotations[addr, frame, 2] * -1]
-            oscmsg += msg
-            c.send(oscmsg)
+                oscmsg = OSC.OSCMessage()
+                oscmsg.setAddress(characters[0])
+                oscmsg.append(list_address[addr])
+                if addr == 0:
+                    msg = [rotations[addr, frame, 0] / 10.0,
+                           rotations[addr, frame, 1] / -10.0,
+                           rotations[addr, frame, 2] / 10.0 + _HEIGHT_CH]
+                else:
+                    msg = [rotations[addr, frame, 0],
+                           rotations[addr, frame, 1] * -1,
+                           rotations[addr, frame, 2] * -1]
+                oscmsg += msg
+                c.send(oscmsg)
             if frame == 0:
                 logging.info(oscmsg)
         sleep(0.032)

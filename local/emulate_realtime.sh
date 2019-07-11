@@ -1,6 +1,6 @@
-. ../path.sh
+. ./path.sh
 
-exp=bounce2
+exp=salsa
 net=s2s
 feats=RES
 init_step=1
@@ -32,7 +32,7 @@ declare -a seq_feats=("bachata_loop"
                         "salsa_180_instr"
                         "salsa_200_instr")
 
-for i in "${hiphop_feats[@]}"
+for i in "${salsa_feats[@]}"
 do
     wave="$DATA_EXTRACT/AUDIO/MP3/$i.mp3"
     epoch=5
