@@ -29,7 +29,6 @@ requirements = {
         'scikit-learn>=0.19.1',
         'pandas>=0.20.3',
         'python_speech_features',
-        'chainerui',
         'scikit-learn',
         'BTET@git+https://github.com/Fhrozen/BTET.git',
         'python-osc',

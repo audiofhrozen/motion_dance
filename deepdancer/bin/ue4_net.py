@@ -56,21 +56,32 @@ list_address = ['PosBody', 'RotPelvis', 'RotHead', 'RotNeck',
                 'RotRightFoot', 'RotLeftClav', 'RotRightClav']
 
 
-def datafeed():
-    data_w.put('start')
+def resampling(wavefile, outfile):
     print('Converting audio data')
-    loc = sec = i = 0
-    rsmpfile = 'resampled.wav'
     if platform == 'Windows':
-        cmmd = 'ffmpeg -y -i {} -acodec pcm_s16le -ar 16000 -ac 1 {}'.format(args.track, rsmpfile)
+        cmmd = 'ffmpeg -y -i {} -acodec pcm_s16le -ar 16000 -ac 1 {}'.format(args.track, outfile)
         subprocess.Popen(cmmd, shell=False).communicate()
     elif platform == 'Linux':
-        os.system('sox {} -c 1 -r 16000 {}'.format(args.track, rsmpfile))
+        os.system('sox {} -c 1 -r 16000 {}'.format(args.track, outfile))
     else:
         data_w.put('fail')
         print('OS not supported')
-        return
+    return
+
+
+def datafeed():
+    data_w.put('start')
+    loc, sec, i = 0, 0, 0
+    if '.wav' not in args.track:
+        rsmpfile = 'resampled.wav'
+        resampling(args.track, rsmpfile)
+    else:
+        rsmpfile = args.track
     data_wav, fs = soundfile.read(rsmpfile)
+    if fs != 16000:
+        rsmpfile = 'resampled.wav'
+        resampling(args.track, rsmpfile)
+        data_wav, fs = soundfile.read(rsmpfile)
     data_wav /= np.amax(np.abs(data_wav))
     idxs = np.linspace(0, fs, 31, endpoint=True, dtype=np.int)
     rest = [0.0325, 0.0335, 0.0325]
