@@ -17,6 +17,8 @@ local/.ipynb_checkpoints
 local/do*
 local/BTET*
 local/run.pl
+egs/**/local/parse_options.sh
+
 extras/*
 venv*
 *.done

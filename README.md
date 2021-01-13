@@ -6,20 +6,24 @@ Generating dance using deep learning techniques.
 
 The proposed model is shown in the following image:
 
-![Proposed Model](images/seq2seq_mc.png?raw=true "Title")
+![Proposed Model](images/seq2seq_mc.png?raw=true "model")
 
 The joints of the skeleton employed in the experiment are shown in the following image:
 
-![Skeleton](images/skeleton.png?raw=true "Title")
+![Skeleton](images/skeleton.png?raw=true "skeleton")
 
-### Use of GPU
-If you use GPU in your experiment, set `--gpu` option in `run.sh` appropriately, e.g., 
-```sh
-$ ./run.sh --gpu 0
-```
-Default setup uses GPU 0 (`--gpu 0`). For CPU execution set gpu to -1
+## Unreal Engine 4 Visualization
+
+You can obtain the UE4 environment from [here](https://github.com/audiofhrozen/dance-engine)
+For demostration from evaluation files or for testing training files use (`local/ue4_send_osc.py`).
+For realtime emulation execute (`run_realtime.sh`). 
+
+## Installation
+
+- If you intend to fully use this package, then see [Installation]()
 
 ## Execution
+
 The main routine is executed by:
 ```sh
 $ ./run.sh --net $net --exp $exp --sequence $sequence --epoch $epochs --stage $stage
@@ -28,11 +32,12 @@ Being possible to train different type of datasets (`$exp`)
 
 To run into a docker container use the file (`run_in_docker.sh`) instead of (`run.sh`)
 
-## Unreal Engine 4 Visualization
-
-For demostration from evaluation files or for testing training files use (`local/ue4_send_osc.py`).
-For realtime emulation execute (`run_realtime.sh`). 
-
+### Use of GPU
+If you use GPU in your experiment, set `--gpu` option in `run.sh` appropriately, e.g., 
+```sh
+$ ./run.sh --gpu 0
+```
+Default setup uses GPU 0 (`--gpu 0`). For CPU execution set gpu to -1
 
 ## Requirements
 
@@ -57,14 +62,6 @@ For real-time emulation:
 - pyOSC (for python v2)
 - python-osc (for python v3)
 - vlc (optional)
-
-## ToDo:
-- New dataset
-- Detailed audio information
-- Virtual environment release
-
-## Acknowledgement
-- Thanks Johnson Lai for the comments	
 
 ## References
 
